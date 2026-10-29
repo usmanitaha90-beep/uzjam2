@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "UZjam Tab Audio",
+  "version": "0.6.0",
+  "description": "Send one Chrome tab through the UZjam desktop EQ and your selected DAC.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "offscreen",
+    "storage",
+    "tabCapture",
+    "tabs"
+  ],
+  "host_permissions": [
+    "ws://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Choose a tab for UZjam",
+    "default_popup": "popup.html"
+  }
+}

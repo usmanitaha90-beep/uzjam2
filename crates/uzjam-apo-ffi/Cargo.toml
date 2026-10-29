@@ -1,0 +1,13 @@
+[package]
+name = "uzjam-apo-ffi"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "uzjam_apo_ffi"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+uzjam-core = { path = "../uzjam-core" }
+uzjam-dsp = { path = "../uzjam-dsp" }

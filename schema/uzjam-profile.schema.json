@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzjam.app/schema/profile/v1.json",
+  "title": "UZjam Profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "filters", "dsp", "metadata"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "filters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/filter" }
+    },
+    "dsp": { "$ref": "#/$defs/dsp" },
+    "target": {
+      "anyOf": [{ "$ref": "#/$defs/target" }, { "type": "null" }]
+    },
+    "deviceBinding": {
+      "anyOf": [{ "$ref": "#/$defs/deviceBinding" }, { "type": "null" }]
+    },
+    "metadata": { "$ref": "#/$defs/metadata" }
+  },
+  "$defs": {
+    "finiteNumber": { "type": "number" },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "enabled", "kind", "frequencyHz", "gainDb", "q", "channel"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "enabled": { "type": "boolean" },
+        "kind": { "enum": ["peak", "lowShelf", "highShelf", "lowPass", "highPass", "notch", "bandPass", "allPass"] },
+        "frequencyHz": { "type": "number", "exclusiveMinimum": 0 },
+        "gainDb": { "type": "number" },
+        "q": { "type": "number", "exclusiveMinimum": 0 },
+        "channel": { "enum": ["stereo", "left", "right"] }
+      }
+    },
+    "dsp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "preampDb", "headroomMode", "manualHeadroomDb", "safetyMarginDb", "clippingPolicy", "limiterEnabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "preampDb": { "type": "number" },
+        "headroomMode": { "enum": ["auto", "manual", "off"] },
+        "manualHeadroomDb": { "type": "number", "minimum": 0 },
+        "safetyMarginDb": { "type": "number", "minimum": 0 },
+        "clippingPolicy": { "enum": ["auto", "smooth", "curve", "allowClipping"] },
+        "limiterEnabled": { "type": "boolean" }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "correctionStrength"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "correctionStrength": { "type": "number" }
+      }
+    },
+    "deviceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headphoneId": { "type": ["string", "null"] },
+        "outputDeviceId": { "type": ["string", "null"] }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["createdAtUtc", "modifiedAtUtc"],
+      "properties": {
+        "createdAtUtc": { "type": "string" },
+        "modifiedAtUtc": { "type": "string" },
+        "source": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

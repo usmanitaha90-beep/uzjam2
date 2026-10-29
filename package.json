@@ -1,0 +1,32 @@
+{
+  "name": "uzjam-p0",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run typecheck && npm run build:web",
+    "build:web": "esbuild apps/web/src/app.js --bundle --format=iife --platform=browser --target=es2020 --sourcemap --sources-content=true --outfile=dist/app.js",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "build:release": "powershell -ExecutionPolicy Bypass -File ./tools/build-windows-release.ps1",
+    "build:extension": "powershell -ExecutionPolicy Bypass -File ./tools/build-chrome-extension.ps1",
+    "typecheck": "tsc -p packages/uzjam-contract/tsconfig.json --pretty false && tsc -p packages/uzjam-engine-client/tsconfig.json --pretty false",
+    "test": "npm run typecheck && npm run test:engine && npm run test:web && npm run test:extension && npm run test:dsp-reference && npm run check:frontend-boundary",
+    "test:engine": "tsx --test packages/uzjam-engine-client/test/*.test.ts packages/uzjam-contract/test/*.test.ts",
+    "test:web": "node --test apps/web/test/*.test.mjs",
+    "test:extension": "node --test extensions/chrome/test/*.test.mjs",
+    "test:dsp-reference": "node tools/test-dsp-reference.mjs",
+    "check:frontend-boundary": "node tools/check-frontend-boundary.mjs",
+    "validate:schema": "node tools/validate-schema.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1",
+    "ajv": "8.20.0",
+    "esbuild": "0.25.10",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}

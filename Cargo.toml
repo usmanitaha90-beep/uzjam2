@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/uzjam-core",
+  "crates/uzjam-dsp",
+  "crates/uzjam-audio",
+  "crates/uzjam-apo-ffi",
+  "src-tauri",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Proprietary"
+version = "0.1.0"
+authors = ["UZjam"]

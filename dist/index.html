@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f8">
+  <meta name="description" content="UZjam is a precision parametric equalizer and private local listening workspace.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%235438ee'/%3E%3Cpath d='M13 17v18c0 12 7 17 19 17s19-5 19-17V17h-9v18c0 6-3 9-10 9s-10-3-10-9V17h-9Z' fill='white'/%3E%3Cpath d='M20 28h24' stroke='%23ffb24c' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <title>UZjam — EQ Studio</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to workspace</a>
+  <div id="liveRegion" class="sr-only" aria-live="polite"></div>
+
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-eq" viewBox="0 0 24 24"><path d="M4 7h8M16 7h4M4 17h4M12 17h8M12 4v6M8 14v6"/></symbol>
+    <symbol id="i-library" viewBox="0 0 24 24"><path d="M4 5h7v14H4zM13 5h7v6h-7zM13 13h7v6h-7z"/></symbol>
+    <symbol id="i-profile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+    <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6h12M4 12h12M4 18h8"/><path d="m17 15 4 3-4 3z"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.8-1L14.4 3h-4.8l-.4 3.1a7 7 0 0 0-1.8 1L5 6.1 3 9.5 5.1 11a7 7 0 0 0 0 2L3 14.5 5 18l2.4-1a7 7 0 0 0 1.8 1l.4 3h4.8l.4-3a7 7 0 0 0 1.8-1l2.4 1 2-3.5-2.1-1.5a7 7 0 0 0 .1-1Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3M7 8l5-5 5 5M4 14v6h16v-6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13M7 11l5 5 5-5M4 14v6h16v-6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="m9 7-5 5 5 5"/><path d="M5 12h8a6 6 0 0 1 6 6"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 7 5 5-5 5"/><path d="M19 12h-8a6 6 0 0 0-6 6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path class="fill" d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path class="fill" d="M7 5h4v14H7zM14 5h4v14h-4z"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5v14"/><path class="fill" d="m18 5-10 7 10 7z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5v14"/><path class="fill" d="m6 5 10 7-10 7z"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M4 7h3c5 0 5 10 10 10h3M17 4l3 3-3 3M4 17h3c2 0 3-1 4-3M17 14l3 3-3 3"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M7 6h9a4 4 0 0 1 4 4M17 3l3 3-3 3M17 18H8a4 4 0 0 1-4-4M7 21l-3-3 3-3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17.5v.1"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle class="fill" cx="5" cy="12" r="1.5"/><circle class="fill" cx="12" cy="12" r="1.5"/><circle class="fill" cx="19" cy="12" r="1.5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle class="fill" cx="4.5" cy="6" r="1"/><circle class="fill" cx="4.5" cy="12" r="1"/><circle class="fill" cx="4.5" cy="18" r="1"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 3h6l1 4H8l1-4ZM7 7l1 14h8l1-14M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h4v7H5a1 1 0 0 1-1-1v-6ZM20 14h-4v7h3a1 1 0 0 0 1-1v-6Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-tab-audio" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M8 21h8M12 18v3M7 13h2l1.2-2.5L12.5 16l1.5-3h3"/></symbol>
+    <symbol id="i-source" viewBox="0 0 24 24"><circle cx="7" cy="12" r="3"/><circle cx="17" cy="7" r="3"/><circle cx="17" cy="17" r="3"/><path d="m9.7 10.7 4.6-2.4M9.7 13.3l4.6 2.4"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect class="fill" x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  </svg>
+
+  <input id="audioFileInput" type="file" accept="audio/*,.flac,.alac,.wav,.aiff,.aif,.mp3,.m4a,.aac,.ogg" multiple hidden>
+  <input id="folderInput" type="file" accept="audio/*,.flac,.alac,.wav,.aiff,.aif,.mp3,.m4a,.aac,.ogg,.m3u,.m3u8" multiple webkitdirectory hidden>
+  <input id="playlistInput" type="file" accept=".m3u,.m3u8,audio/x-mpegurl" hidden>
+  <input id="presetInput" type="file" accept=".json,application/json" hidden>
+  <input id="settingsBackupInput" type="file" accept=".json,application/json" hidden>
+
+  <div class="app-shell">
+    <aside class="rail" aria-label="Primary navigation">
+      <button class="brand nav-trigger" data-view="studio" aria-label="Open UZjam EQ Studio">
+        <span class="brand-mark" aria-hidden="true">UZ</span>
+        <span class="brand-copy"><strong>UZjam</strong><small>LISTEN CLOSER</small></span>
+      </button>
+
+      <nav class="rail-nav">
+        <button class="nav-item active" data-view="studio" aria-current="page"><svg><use href="#i-eq"/></svg><span>EQ Studio</span><kbd>1</kbd></button>
+        <button class="nav-item" data-view="library"><svg><use href="#i-library"/></svg><span>Library</span><kbd>2</kbd></button>
+        <button class="nav-item" data-view="queue"><svg><use href="#i-queue"/></svg><span>Queue</span><kbd>3</kbd></button>
+        <button class="nav-item" data-view="signal"><svg><use href="#i-signal"/></svg><span>Signal Path</span><kbd>4</kbd></button>
+      </nav>
+
+      <div class="rail-bottom">
+        <button class="nav-item" data-view="settings"><svg><use href="#i-settings"/></svg><span>Settings</span><kbd>5</kbd></button>
+        <div class="output-pill">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div><small>OUTPUT</small><strong id="railOutput">Built-in audio</strong></div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="workspace" id="main-content">
+      <header class="topbar">
+        <div class="view-identity">
+          <p class="eyebrow" id="viewEyebrow">LISTENING PROFILE</p>
+          <button class="profile-select" id="profileDockButton" aria-controls="profileDock" aria-expanded="true"><span id="activeProfileName">HIFIMAN Edition XS</span><svg><use href="#i-chevron"/></svg></button>
+        </div>
+
+        <div class="mode-switch" role="group" aria-label="Editor mode">
+          <button data-mode="basic" class="active">Basic</button>
+          <button data-mode="advanced">Advanced</button>
+        </div>
+
+        <div class="top-actions">
+          <button id="compareButton" class="button subtle" aria-pressed="false">A/B Compare</button>
+          <button id="eqPowerButton" class="power-button active" aria-pressed="true"><span class="power-led"></span><span>EQ ON</span></button>
+        </div>
+      </header>
+
+      <div class="view-stack">
+        <section class="app-view studio-view active" data-view-panel="studio" aria-labelledby="studioTitle">
+          <div class="studio-main">
+            <div class="page-heading studio-heading">
+              <div>
+                <p class="eyebrow">UZJAM CONTROL ROOM</p>
+                <h1 id="studioTitle">Tune by feel. Refine by ear.</h1>
+                <p class="heading-note"><span class="basic-copy">Six musical tone zones plus preamp. No engineering degree required.</span><span class="advanced-copy">A serious filter room with every decision still visible.</span></p>
+              </div>
+              <div class="studio-actions">
+                <button id="undoButton" class="icon-button" aria-label="Undo" title="Undo"><svg><use href="#i-undo"/></svg></button>
+                <button id="redoButton" class="icon-button" aria-label="Redo" title="Redo"><svg><use href="#i-redo"/></svg></button>
+                <button class="button subtle preset-import-trigger"><svg><use href="#i-upload"/></svg>Import</button>
+                <button id="exportPresetButton" class="button subtle"><svg><use href="#i-download"/></svg>Export</button>
+              </div>
+            </div>
+
+            <section class="profile-dock open" id="profileDock" aria-labelledby="profilesTitle">
+              <div class="profile-dock-heading">
+                <div><p class="eyebrow">PROFILES · INSIDE THE STUDIO</p><h2 id="profilesTitle">Pick a sound, then shape it.</h2></div>
+                <div class="profile-dock-actions">
+                  <label class="search-field profile-search"><svg><use href="#i-search"/></svg><input id="profileSearch" type="search" placeholder="Search profiles" aria-label="Search profiles"></label>
+                  <button class="button subtle preset-import-trigger"><svg><use href="#i-upload"/></svg>Import</button>
+                  <button id="newProfileButton" class="button primary"><svg><use href="#i-plus"/></svg>Save profile</button>
+                </div>
+              </div>
+              <div class="profile-shelves">
+                <div class="profile-category"><div class="category-heading"><h3>Your profiles</h3><span>Saved on this device</span></div><div id="profileGrid" class="profile-grid"></div></div>
+                <div class="profile-category"><div class="category-heading"><h3>Starting points</h3><span>Neutral templates</span></div><div id="starterProfileGrid" class="profile-grid compact-grid"></div></div>
+              </div>
+            </section>
+
+            <section id="captureStatusBar" class="capture-status" aria-live="polite" hidden>
+              <div class="capture-status-mark"><svg><use href="#i-tab-audio"/></svg><i></i></div>
+              <div class="capture-status-copy"><strong id="captureStatusTitle">Browser tab connected</strong><span id="captureStatusText">Live audio is passing through UZjam.</span></div>
+              <button id="captureStatusAction" class="button subtle" type="button">Stop</button>
+            </section>
+
+            <div class="studio-controlbar">
+              <div class="control-style-switch" role="group" aria-label="Equalizer control style">
+                <span>Control style</span>
+                <button class="active" data-editor-style="curve" aria-pressed="true">Curve</button>
+                <button data-editor-style="faders" aria-pressed="false">Faders</button>
+              </div>
+              <div class="band-count-switch advanced-only" role="group" aria-label="Advanced equalizer band count">
+                <span>Resolution</span>
+                <button class="active" data-band-count="10">10-band</button>
+                <button data-band-count="15">15-band</button>
+                <button data-band-count="30">30-band</button>
+              </div>
+              <p class="resolution-note advanced-only" id="resolutionNote">Fast tonal shaping · fully parametric</p>
+            </div>
+
+            <div class="metric-row" aria-label="Equalizer safety metrics">
+              <div class="metric"><span>CURVE PEAK</span><strong id="curvePeakMetric">+0.0 <small>dB</small></strong><em>Predicted</em></div>
+              <div class="metric"><span>HEADROOM</span><strong id="headroomMetric">−0.0 <small>dB</small></strong><em id="headroomModeMetric">Auto</em></div>
+              <div class="metric output-metric"><span>OUTPUT MARGIN</span><strong id="outputMarginMetric">0.0 <small>dB</small></strong><em id="outputStatusMetric" class="safe">Safe</em></div>
+              <div class="meter-cluster advanced-only"><span>L</span><div class="micro-meter"><i id="meterL"></i></div><span>R</span><div class="micro-meter"><i id="meterR"></i></div></div>
+            </div>
+
+            <div class="studio-visual-grid">
+            <div class="graph-card editor-surface active" id="curveEditor" data-editor-panel="curve">
+              <div class="graph-toolbar">
+                <div class="graph-title"><span class="basic-copy">DRAGGABLE TONE CURVE</span><span class="advanced-copy">PARAMETRIC RESPONSE</span><strong id="graphModeLabel">Six musical tone zones</strong></div>
+                <div class="graph-channel advanced-only" role="group" aria-label="Displayed channel">
+                  <button class="active" data-graph-channel="both">L+R</button>
+                  <button data-graph-channel="left">L</button>
+                  <button data-graph-channel="right">R</button>
+                </div>
+                <div class="graph-legend">
+                  <span class="requested-legend" hidden><i></i>Requested</span>
+                  <span><i></i>Effective</span>
+                </div>
+              </div>
+
+              <div class="graph-plot" id="eqPlot" aria-label="Equalizer graph. Double-click to add a band.">
+                <svg id="eqGraph" viewBox="0 0 1000 460" role="img" aria-labelledby="graphTitle graphDescription" preserveAspectRatio="none">
+                  <title id="graphTitle">Parametric equalizer response</title>
+                  <desc id="graphDescription">Logarithmic frequency response from 20 hertz to 20 kilohertz and minus 18 to plus 18 decibels.</desc>
+                  <defs>
+                    <linearGradient id="responseFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#b593ff" stop-opacity=".28"/>
+                      <stop offset=".68" stop-color="#b593ff" stop-opacity=".04"/>
+                      <stop offset="1" stop-color="#b593ff" stop-opacity="0"/>
+                    </linearGradient>
+                    <linearGradient id="clipFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#ff6976" stop-opacity=".22"/>
+                      <stop offset="1" stop-color="#ff6976" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <g class="db-grid">
+                    <path d="M52 28H978M52 95H978M52 162H978M52 230H978M52 297H978M52 364H978M52 432H978"/>
+                    <path d="M52 28V432M145 28V432M238 28V432M361 28V432M515 28V432M669 28V432M792 28V432M885 28V432M978 28V432"/>
+                  </g>
+                  <path class="zero-axis" d="M52 230H978"/>
+                  <path id="spectrumPath" class="spectrum-path" d=""/>
+                  <path id="requestedPath" class="requested-path" d=""/>
+                  <path id="responseArea" class="response-area" d=""/>
+                  <path id="responsePath" class="response-path" d=""/>
+                  <g class="axis-labels">
+                    <text x="11" y="33">+18</text><text x="17" y="100">+12</text><text x="23" y="167">+6</text><text x="29" y="235">0</text><text x="17" y="302">−6</text><text x="11" y="369">−12</text><text x="11" y="437">−18</text>
+                    <text x="45" y="454">20</text><text x="135" y="454">40</text><text x="228" y="454">80</text><text x="348" y="454">200</text><text x="504" y="454">1k</text><text x="658" y="454">5k</text><text x="781" y="454">10k</text><text x="870" y="454">16k</text><text x="956" y="454">20k</text>
+                  </g>
+                </svg>
+                <div id="bandHandles" class="band-handles"></div>
+                <div class="graph-instruction"><span>Drag</span> tone + level <b>·</b> <span>Arrow keys</span> adjust precisely <b class="advanced-only">·</b> <span class="advanced-only">Double-click to add</span></div>
+              </div>
+
+              <div id="toneZoneRail" class="tone-zone-rail basic-only" aria-label="Basic tuning zones"></div>
+
+              <div class="basic-preamp basic-only">
+                <div><p class="eyebrow">PREAMP</p><strong id="basicPreampValue">0.0 dB</strong><small>Overall level before EQ</small></div>
+                <input id="basicPreampRange" class="range gain-range" type="range" min="-24" max="12" value="0" step=".1" aria-label="Basic preamp gain">
+              </div>
+
+              <div class="band-bank-header advanced-only">
+                <span>BANDS</span>
+                <button id="addBandButton" class="text-button"><svg><use href="#i-plus"/></svg>Add band</button>
+              </div>
+              <div id="bandStrip" class="band-strip advanced-only" aria-label="Equalizer bands"></div>
+            </div>
+
+            <section class="linear-eq editor-surface" id="faderEditor" data-editor-panel="faders" aria-labelledby="linearEqTitle">
+              <div class="linear-eq-heading"><div><p class="eyebrow">CLASSIC LINEAR EQ</p><h2 id="linearEqTitle">Move the music, one fader at a time.</h2></div><span id="linearEqCount">7 controls</span></div>
+              <div id="linearEqRack" class="linear-eq-rack"></div>
+            </section>
+
+            <aside class="monitor-card" aria-labelledby="monitorTitle">
+              <div class="monitor-heading">
+                <div><p class="eyebrow">LIVE MONITOR</p><h2 id="monitorTitle">Output</h2></div>
+                <div class="monitor-switch" role="group" aria-label="Monitor display">
+                  <button class="active" data-monitor="vu" aria-pressed="true">VU</button>
+                  <button data-monitor="spectrum" aria-pressed="false">Spectrum</button>
+                </div>
+              </div>
+              <div class="monitor-display vu-monitor active" data-monitor-panel="vu">
+                <div class="vu-scale" aria-hidden="true"><span>0</span><span>−6</span><span>−18</span><span>−36</span><span>−60</span></div>
+                <div class="vu-channel"><div class="vu-well"><i id="vuLFill"></i><b></b></div><strong>L</strong><output id="vuLValue">−∞</output></div>
+                <div class="vu-channel"><div class="vu-well"><i id="vuRFill"></i><b></b></div><strong>R</strong><output id="vuRValue">−∞</output></div>
+              </div>
+              <div class="monitor-display spectrum-monitor" data-monitor-panel="spectrum">
+                <svg viewBox="0 0 320 250" role="img" aria-label="Live logarithmic spectrum visualizer" preserveAspectRatio="none">
+                  <defs><linearGradient id="monitorSpectrumFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6747f5" stop-opacity=".72"/><stop offset="1" stop-color="#6747f5" stop-opacity=".02"/></linearGradient></defs>
+                  <g class="monitor-grid"><path d="M18 32H304M18 82H304M18 132H304M18 182H304M18 232H304"/><path d="M18 24V232M84 24V232M160 24V232M236 24V232M304 24V232"/></g>
+                  <path id="monitorSpectrumArea" class="monitor-spectrum-area" d="M18 232H304V232H18Z"/>
+                  <path id="monitorSpectrumPath" class="monitor-spectrum-path" d=""/>
+                </svg>
+                <div class="spectrum-labels"><span>20</span><span>100</span><span>1k</span><span>10k</span><span>20k</span></div>
+                <p>Play a local track to see the spectrum.</p>
+              </div>
+              <div class="monitor-footer"><span><i class="safe-dot"></i><b id="monitorStatus">Ready</b></span><button id="monitorResetButton" class="text-button">Reset peak</button></div>
+            </aside>
+            </div>
+          </div>
+
+          <aside class="inspector" aria-label="Equalizer controls">
+            <div class="inspector-scroll">
+              <div class="panel-heading">
+                <div><p class="eyebrow">SELECTED BAND</p><h2 id="selectedBandTitle">01 · Low shelf</h2></div>
+                <label class="switch compact"><input id="bandEnabledInput" type="checkbox" checked><span></span><em>Active</em></label>
+              </div>
+
+              <div class="filter-type-row" role="group" aria-label="Filter type">
+                <button data-filter="lowshelf">Low shelf</button>
+                <button data-filter="peaking">Peak</button>
+                <button data-filter="highshelf">High shelf</button>
+              </div>
+
+              <div class="parameter-stack">
+                <div class="parameter-control">
+                  <div class="parameter-label"><label for="frequencyInput">Frequency</label><div><input id="frequencyInput" type="number" min="20" max="20000" step="1"><span>Hz</span></div></div>
+                  <input id="frequencyRange" class="range" type="range" min="0" max="1000" step="1" aria-label="Selected band frequency">
+                </div>
+                <div class="parameter-control">
+                  <div class="parameter-label"><label for="gainInput">Gain</label><div><input id="gainInput" type="number" min="-18" max="18" step=".1"><span>dB</span></div></div>
+                  <input id="gainRange" class="range gain-range" type="range" min="-18" max="18" step=".1" aria-label="Selected band gain">
+                </div>
+                <div class="parameter-control q-control">
+                  <div class="parameter-label"><label for="qInput">Q / Width</label><div><input id="qInput" type="number" min=".1" max="24" step=".01"><span>Q</span></div></div>
+                  <input id="qRange" class="range" type="range" min="0" max="1000" step="1" aria-label="Selected band Q">
+                </div>
+              </div>
+
+              <div class="advanced-band advanced-only">
+                <label class="field-label" for="bandChannelSelect">Channel</label>
+                <select id="bandChannelSelect" class="select-control">
+                  <option value="both">Linked · Left + Right</option>
+                  <option value="left">Left only</option>
+                  <option value="right">Right only</option>
+                </select>
+                <div class="band-action-row">
+                  <button id="soloBandButton" class="button subtle">Solo band</button>
+                  <button id="resetBandButton" class="button subtle">Reset</button>
+                  <button id="deleteBandButton" class="button danger-quiet"><svg><use href="#i-trash"/></svg>Delete</button>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+
+              <section class="peak-section" aria-labelledby="peakHandlingTitle">
+                <div class="section-heading">
+                  <div><p class="eyebrow">GAIN SAFETY</p><h3 id="peakHandlingTitle">Peak handling</h3></div>
+                  <span id="policyStatusPill" class="status-pill safe">Protected</span>
+                </div>
+                <p class="section-copy">Choose what happens when the EQ curve needs more level than digital full scale allows.</p>
+                <div class="policy-grid" role="radiogroup" aria-label="Peak handling strategy">
+                  <button class="policy-card active" role="radio" aria-checked="true" data-policy="auto">
+                    <span class="policy-icon auto-icon">A</span><span><strong>Auto</strong><small>Exact curve · safe headroom</small></span><svg><use href="#i-check"/></svg>
+                  </button>
+                  <button class="policy-card" role="radio" aria-checked="false" data-policy="curve">
+                    <span class="policy-icon curve-icon">↧</span><span><strong>Lower curve</strong><small>Exact curve · your headroom</small></span><svg><use href="#i-check"/></svg>
+                  </button>
+                  <button class="policy-card" role="radio" aria-checked="false" data-policy="smooth">
+                    <span class="policy-icon smooth-icon">∿</span><span><strong>Smooth peaks</strong><small>Soften boosts · keep more level</small></span><svg><use href="#i-check"/></svg>
+                  </button>
+                  <button class="policy-card danger-policy" role="radio" aria-checked="false" data-policy="clip">
+                    <span class="policy-icon clip-icon">!</span><span><strong>Allow clipping</strong><small>Exact curve · no protection</small></span><svg><use href="#i-check"/></svg>
+                  </button>
+                </div>
+
+                <div class="policy-explainer">
+                  <div class="budget-bar"><i id="budgetUsed"></i><b id="budgetRisk"></b></div>
+                  <div class="budget-labels"><span>EQ boost <strong id="boostBudget">+0.0 dB</strong></span><span>Headroom <strong id="headroomBudget">−0.0 dB</strong></span></div>
+                  <p id="policyExplanation">UZjam calculates the combined curve peak and applies only the static attenuation needed to preserve it.</p>
+                </div>
+
+                <div class="manual-headroom advanced-only">
+                  <div class="headroom-toggle-row">
+                    <div><strong>Headroom</strong><small>Applied before the EQ</small></div>
+                    <label class="switch"><input id="headroomEnabledInput" type="checkbox" checked><span></span><em id="headroomToggleLabel">Enabled</em></label>
+                  </div>
+                  <div class="parameter-control">
+                    <div class="parameter-label"><label for="headroomInput">Manual amount</label><div><input id="headroomInput" type="number" min="0" max="24" step=".1"><span>dB</span></div></div>
+                    <input id="headroomRange" class="range" type="range" min="0" max="24" step=".1" aria-label="Manual headroom">
+                  </div>
+                  <div class="true-peak-row">
+                    <label class="switch compact"><input id="truePeakGuardInput" type="checkbox"><span></span><em>−1 dB look-ahead limiter</em></label>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </aside>
+        </section>
+
+        <section class="app-view library-view" data-view-panel="library" aria-labelledby="libraryTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">LOCAL · PRIVATE</p><h1 id="libraryTitle">Your library</h1><p class="heading-note"><span id="libraryCount">12 tracks</span> · Audio never leaves this device.</p></div>
+            <div class="page-actions">
+              <button class="button subtle" id="importPlaylistButton"><svg><use href="#i-list"/></svg>Import M3U</button>
+              <button class="button primary" id="importFolderButton"><svg><use href="#i-folder"/></svg>Import folder</button>
+            </div>
+          </div>
+
+          <div class="library-toolbar">
+            <label class="search-field"><svg><use href="#i-search"/></svg><input id="librarySearch" type="search" placeholder="Search tracks, albums, artists" aria-label="Search library"></label>
+            <label class="select-wrap"><span>Sort</span><select id="librarySort"><option value="recent">Recently added</option><option value="artist">Artist A–Z</option><option value="album">Album A–Z</option><option value="title">Track A–Z</option></select></label>
+            <div class="density-switch" role="group" aria-label="Album columns">
+              <span>Grid</span><button data-density="2">2</button><button class="active" data-density="3">3</button><button data-density="4">4</button>
+            </div>
+            <button id="selectLibraryButton" class="button subtle">Select</button>
+          </div>
+
+          <div id="bulkBar" class="bulk-bar" hidden>
+            <strong><span id="selectionCount">0</span> selected</strong>
+            <button id="bulkPlaylistButton" class="button subtle"><svg><use href="#i-plus"/></svg>Add to playlist</button>
+            <button id="bulkRemoveButton" class="button danger-quiet"><svg><use href="#i-trash"/></svg>Remove</button>
+            <button id="bulkDoneButton" class="button subtle">Done</button>
+          </div>
+
+          <div class="library-content">
+            <div id="albumGrid" class="album-grid density-3"></div>
+            <nav id="alphabetScrubber" class="alphabet-scrubber" aria-label="Jump to artist initial"></nav>
+          </div>
+          <div id="libraryEmpty" class="empty-state" hidden>
+            <div class="empty-icon"><svg><use href="#i-library"/></svg></div>
+            <h2>No matches here</h2><p>Try another search, or import a folder of local audio.</p>
+            <button class="button primary" id="emptyImportButton">Import folder</button>
+          </div>
+        </section>
+
+        <section class="app-view queue-view" data-view-panel="queue" aria-labelledby="queueTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">UP NEXT</p><h1 id="queueTitle">Queue</h1><p class="heading-note" id="queueSubtitle">Resume exactly where you stopped.</p></div>
+            <div class="page-actions">
+              <button id="shuffleQueueButton" class="button subtle" aria-pressed="false"><svg><use href="#i-shuffle"/></svg>Shuffle</button>
+              <button id="clearQueueButton" class="button danger-quiet">Clear</button>
+            </div>
+          </div>
+          <div class="queue-summary">
+            <div><span>NOW PLAYING</span><strong id="queueNowPlaying">No local track loaded</strong><small id="queueResumeNote">Your position is remembered on this device.</small></div>
+            <div class="queue-stat"><span>TRACKS</span><strong id="queueTrackCount">0</strong></div>
+            <div class="queue-stat"><span>DURATION</span><strong id="queueDuration">—</strong></div>
+          </div>
+          <ol id="queueList" class="queue-list"></ol>
+          <div id="queueEmpty" class="empty-state">
+            <div class="empty-icon"><svg><use href="#i-queue"/></svg></div><h2>Your queue is quiet</h2><p>Load local tracks to start listening through the EQ.</p><button class="button primary load-audio-trigger">Load audio</button>
+          </div>
+        </section>
+
+        <section class="app-view signal-view" data-view-panel="signal" aria-labelledby="signalTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">TRANSPARENT BY DESIGN</p><h1 id="signalTitle">Signal path</h1><p class="heading-note">Every stage shaping the output, in order.</p></div>
+            <div class="page-actions"><button id="copySignalButton" class="button subtle">Copy summary</button></div>
+          </div>
+          <div class="signal-layout">
+            <div class="signal-chain" id="signalChain">
+              <article class="signal-node"><span>01</span><div><p>SOURCE</p><h2 id="signalSourceTitle">Choose a source</h2><small id="signalSourceMeta">Local files or a browser tab</small></div><em id="signalSourceState" class="neutral">Ready</em></article>
+              <div class="signal-link"><i></i><span id="inputLevelLabel">−∞ dBFS</span></div>
+              <article class="signal-node"><span>02</span><div><p>PRE-EQ GAIN</p><h2 id="signalHeadroomTitle">Auto headroom</h2><small id="signalHeadroomMeta">0.0 dB attenuation</small></div><em id="signalHeadroomState" class="safe">Safe</em></article>
+              <div class="signal-link"><i></i><span>32-bit float</span></div>
+              <article class="signal-node featured"><span>03</span><div><p>PARAMETRIC EQ</p><h2 id="signalEqTitle">5 active bands</h2><small>Independent L/R routing available</small></div><em id="signalEqState" class="violet">On</em></article>
+              <div class="signal-link"><i></i><span id="curvePeakLabel">+0.0 dB peak</span></div>
+              <article class="signal-node"><span>04</span><div><p>PEAK POLICY</p><h2 id="signalPolicyTitle">Auto</h2><small id="signalPolicyMeta">Exact curve preserved</small></div><em id="signalPolicyState" class="safe">Protected</em></article>
+              <div class="signal-link"><i></i><span id="outputLevelLabel">−∞ dBFS</span></div>
+              <article class="signal-node"><span>05</span><div><p>OUTPUT</p><h2 id="signalOutputTitle">Browser output</h2><small id="signalOutputMeta">Web Audio route · 48 kHz target</small></div><em id="signalOutputState" class="neutral">Local</em></article>
+            </div>
+            <aside class="telemetry-card">
+              <p class="eyebrow">LIVE TELEMETRY</p>
+              <div class="telemetry-meter"><div><i id="telemetryBar"></i></div><span>0 dBFS</span><span>−48</span></div>
+              <dl>
+                <div><dt>Sample rate</dt><dd id="sampleRateValue">48 kHz</dd></div>
+                <div><dt>Curve peak</dt><dd id="telemetryCurvePeak">+0.0 dB</dd></div>
+                <div><dt>Applied headroom</dt><dd id="telemetryHeadroom">−0.0 dB</dd></div>
+                <div><dt>Remaining margin</dt><dd id="telemetryMargin">0.0 dB</dd></div>
+                <div><dt>Clip latch</dt><dd id="clipLatchValue">Clear</dd></div>
+              </dl>
+              <button id="resetClipLatchButton" class="button subtle full-button">Reset clip latch</button>
+            </aside>
+          </div>
+          <p class="platform-note"><svg><use href="#i-lock"/></svg><span id="platformRouteNote"><strong>Honest routing:</strong> UZjam processes local files or one browser tab you explicitly share. Native desktop apps still require a platform audio component.</span></p>
+        </section>
+
+        <section class="app-view settings-view" data-view-panel="settings" aria-labelledby="settingsTitle">
+          <div class="page-heading">
+            <div><p class="eyebrow">UZJAM ON THIS DEVICE</p><h1 id="settingsTitle">Settings</h1><p class="heading-note">Preferences are stored locally. Nothing is uploaded.</p></div>
+            <div class="page-actions"><button id="resetSettingsButton" class="button danger-quiet">Restore defaults</button></div>
+          </div>
+          <div class="settings-grid">
+            <section class="settings-card">
+              <div class="settings-card-heading"><div><span>01</span><h2>Appearance</h2></div><small>Make the workspace comfortable.</small></div>
+              <label class="setting-row"><span><strong>Theme</strong><small>Studio light by default, graphite when wanted</small></span><select id="themeSelect" class="select-control"><option value="light">Studio light</option><option value="dark">Graphite</option></select></label>
+              <label class="setting-row"><span><strong>High contrast</strong><small>Stronger edges and text contrast</small></span><span class="switch"><input id="highContrastInput" type="checkbox"><span></span></span></label>
+              <label class="setting-row"><span><strong>Reduce motion</strong><small>Limit animated meters and transitions</small></span><span class="switch"><input id="reduceMotionInput" type="checkbox"><span></span></span></label>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-heading"><div><span>02</span><h2>Equalizer</h2></div><small>Defaults for new profiles.</small></div>
+              <label class="setting-row"><span><strong>Analyzer</strong><small>Show live spectrum during playback</small></span><span class="switch"><input id="analyzerInput" type="checkbox" checked><span></span></span></label>
+              <label class="setting-row"><span><strong>Nearby bands</strong><small>Allow filters at similar frequencies</small></span><span class="switch"><input id="nearbyBandsInput" type="checkbox" checked><span></span></span></label>
+              <label class="setting-row"><span><strong>Default editor</strong><small>Mode shown when UZjam opens</small></span><select id="defaultModeSelect" class="select-control"><option value="basic">Basic</option><option value="advanced">Advanced</option></select></label>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-heading"><div><span>03</span><h2>Library</h2></div><small>Control browsing and imports.</small></div>
+              <label class="setting-row"><span><strong>Album columns</strong><small>Used on wider screens</small></span><select id="albumColumnsSelect" class="select-control"><option value="2">2 columns</option><option value="3">3 columns</option><option value="4">4 columns</option></select></label>
+              <label class="setting-row"><span><strong>Report duplicates</strong><small>Tell you which files were skipped</small></span><span class="switch"><input id="duplicateReportInput" type="checkbox" checked><span></span></span></label>
+              <label class="setting-row"><span><strong>Resume playback</strong><small>Keep queue, track, and position</small></span><span class="switch"><input id="resumePlaybackInput" type="checkbox" checked><span></span></span></label>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-heading"><div><span>04</span><h2>Windows audio</h2></div><small>System-wide. No virtual cable.</small></div>
+              <div id="nativeAudioUnavailable" class="native-audio-callout" hidden>
+                <svg><use href="#i-signal"/></svg>
+                <div><strong>Available in the Windows app</strong><small>The web edition keeps using local files and shared browser tabs.</small></div>
+              </div>
+              <div id="nativeAudioControls" class="native-audio-controls" hidden>
+                <div id="nativeDirectCard" class="native-direct-card">
+                  <div class="native-audio-status-row native-direct-status-row">
+                    <span class="native-direct-indicator"></span>
+                    <div><strong id="nativeDirectStatus">Checking direct audio…</strong><small id="nativeDirectStatusDetail">Looking for the UZjam endpoint component.</small></div>
+                    <span id="nativeDirectBadge" class="native-backend-badge">ENDPOINT APO</span>
+                  </div>
+                  <label class="native-audio-field"><span><strong>Direct output</strong><small>Your everyday Windows playback device</small></span><select id="nativeDirectOutputDevice" class="select-control"><option value="">Loading devices…</option></select></label>
+                  <p id="nativeDirectHint" class="native-route-hint">UZjam processes audio inside the selected Windows endpoint.</p>
+                  <div id="nativeDirectAudioError" class="native-audio-error" role="alert" hidden></div>
+                  <div class="native-audio-actions">
+                    <button id="nativeDirectRefresh" class="button subtle" type="button">Check component</button>
+                    <button id="nativeDirectToggle" class="button primary" type="button" disabled>Enable direct EQ</button>
+                  </div>
+                </div>
+                <div class="native-section-label"><span>Compatibility route</span><small>For live inputs or systems without the endpoint component</small></div>
+                <div class="native-audio-status-row">
+                  <span id="nativeAudioIndicator" class="native-audio-indicator"></span>
+                  <div><strong id="nativeAudioStatus">Audio engine stopped</strong><small id="nativeAudioStatusDetail">Choose a source and listening output.</small></div>
+                  <span id="nativeBackendBadge" class="native-backend-badge">WASAPI</span>
+                </div>
+                <label class="native-audio-field"><span><strong>Capture source</strong><small>The device UZjam receives audio from</small></span><select id="nativeInputDevice" class="select-control"><option value="">Loading devices…</option></select></label>
+                <label class="native-audio-field"><span><strong>Listening output</strong><small>Your headphones, DAC, or speakers</small></span><select id="nativeOutputDevice" class="select-control"><option value="">Loading devices…</option></select></label>
+                <label class="native-audio-field"><span><strong>Buffer</strong><small>Lower feels faster; higher is more resilient</small></span><select id="nativeBufferFrames" class="select-control"><option value="128">128 frames · Low</option><option value="256" selected>256 frames · Balanced</option><option value="512">512 frames · Safe</option><option value="1024">1024 frames · Maximum stability</option></select></label>
+                <p id="nativeRouteHint" class="native-route-hint">Choose a source and output to check the route.</p>
+                <label class="setting-row native-startup-row"><span><strong>Reconnect automatically</strong><small>Resume the exact route at launch or after a device reset</small></span><span class="switch"><input id="nativeAutoStartInput" type="checkbox"><span></span></span></label>
+                <div id="nativeAudioError" class="native-audio-error" role="alert" hidden></div>
+                <div class="native-audio-actions">
+                  <button id="nativeRefreshDevices" class="button subtle" type="button">Refresh devices</button>
+                  <button id="nativeAudioToggle" class="button primary" type="button">Start processing</button>
+                </div>
+                <div class="native-audio-telemetry" aria-label="Native audio telemetry">
+                  <span><small>FORMAT</small><strong id="nativeAudioFormat">—</strong></span>
+                  <span><small>LATENCY</small><strong id="nativeAudioLatency">—</strong></span>
+                  <span><small>XRUNS</small><strong id="nativeAudioXruns">0</strong></span>
+                  <span><small>CLOCK</small><strong id="nativeAudioClock">0 adj</strong></span>
+                </div>
+                <p class="native-audio-note"><svg><use href="#i-warning"/></svg><span>This capture-to-output route is the fallback. Direct Windows EQ above is the preferred system-wide mode and does not need a virtual cable.</span></p>
+              </div>
+            </section>
+            <section class="settings-card">
+              <div class="settings-card-heading"><div><span>05</span><h2>Data</h2></div><small>Local by default.</small></div>
+              <div class="privacy-summary"><svg><use href="#i-lock"/></svg><div><strong>No account. No cloud. No tracking.</strong><small>EQ profiles and preferences live in this browser. Audio files remain on your device.</small></div></div>
+              <button id="exportAllButton" class="button subtle full-button"><svg><use href="#i-download"/></svg>Export UZjam settings</button>
+              <button id="importAllButton" class="button subtle full-button"><svg><use href="#i-upload"/></svg>Restore UZjam settings</button>
+              <button id="clearLocalDataButton" class="button danger-quiet full-button">Clear local settings</button>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <footer class="player-bar" aria-label="Audio source and player">
+        <div class="now-playing">
+          <button id="sourceArtButton" class="track-art source-trigger" aria-label="Choose audio source"><span id="trackArtLetters">UZ</span></button>
+          <div><strong id="playerTrackTitle">Choose an audio source</strong><span id="playerTrackArtist">Local files or a browser tab</span></div>
+        </div>
+        <div class="transport">
+          <div class="local-transport" id="localTransport">
+            <div class="transport-buttons">
+              <button id="shuffleButton" class="player-icon" aria-label="Shuffle" aria-pressed="false"><svg><use href="#i-shuffle"/></svg></button>
+              <button id="previousButton" class="player-icon" aria-label="Previous"><svg><use href="#i-prev"/></svg></button>
+              <button id="playButton" class="play-button" aria-label="Play"><svg><use href="#i-play"/></svg></button>
+              <button id="nextButton" class="player-icon" aria-label="Next"><svg><use href="#i-next"/></svg></button>
+              <button id="repeatButton" class="player-icon" aria-label="Repeat" aria-pressed="false"><svg><use href="#i-repeat"/></svg></button>
+            </div>
+            <div class="timeline"><span id="elapsedTime">0:00</span><input id="seekRange" type="range" min="0" max="100" value="0" step=".1" aria-label="Playback position"><span id="durationTime">0:00</span></div>
+          </div>
+          <div class="capture-transport" id="captureTransport" aria-live="polite">
+            <span class="capture-live-mark"><i></i>LIVE</span>
+            <div class="capture-level" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <span id="captureElapsed">0:00</span>
+            <button id="captureTransportStop" class="button capture-stop" type="button" aria-label="Stop browser tab audio"><svg><use href="#i-stop"/></svg>Stop</button>
+          </div>
+        </div>
+        <div class="player-meta">
+          <span id="formatChip" class="format-chip">LOCAL PCM</span>
+          <button id="miniEqButton" class="processor-chip active nav-trigger" data-view="studio">EQ <i></i></button>
+          <button id="sourceButton" class="source-button source-trigger" type="button"><svg><use href="#i-source"/></svg><span>Source</span></button>
+        </div>
+      </footer>
+      <audio id="audioElement" preload="metadata"></audio>
+    </main>
+  </div>
+
+  <dialog id="sourceDialog" class="modal source-dialog">
+    <form method="dialog">
+      <button class="dialog-close" value="cancel" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <p class="eyebrow">AUDIO SOURCE</p>
+      <h2>What do you want to hear?</h2>
+      <p>Both choices stay on this device and use the same UZjam EQ, meters, and headroom protection.</p>
+      <div class="source-options">
+        <button id="chooseTabSource" class="source-option featured" type="button">
+          <span class="source-option-icon"><svg><use href="#i-tab-audio"/></svg></span>
+          <span class="source-option-copy"><strong>Browser tab <em>BETA</em></strong><small>Choose Browser Tab, select the tab playing audio, and keep <b>Share tab audio</b> on. Choose the music tab—not this UZjam tab.</small></span>
+          <span class="source-option-action">Choose a tab</span>
+        </button>
+        <button id="chooseLocalSource" class="source-option" type="button">
+          <span class="source-option-icon"><svg><use href="#i-folder"/></svg></span>
+          <span class="source-option-copy"><strong>Local files</strong><small>Play FLAC, ALAC, WAV, AIFF, MP3, AAC, OGG, or Opus stored on this device.</small></span>
+          <span class="source-option-action">Choose files</span>
+        </button>
+      </div>
+      <p id="tabCaptureSupportNote" class="capture-support-note" aria-live="polite"><svg><use href="#i-lock"/></svg><span>Only the tab you choose is heard. Nothing is uploaded or recorded.</span><button id="copyPairingCode" class="copy-pairing-code" type="button" hidden>Copy code</button></p>
+      <div class="dialog-actions"><button class="button subtle" value="cancel">Cancel</button></div>
+    </form>
+  </dialog>
+
+  <span id="captureAnnouncement" class="sr-only" role="status" aria-live="polite"></span>
+
+  <dialog id="clipDialog" class="modal">
+    <form method="dialog">
+      <button class="dialog-close" value="cancel" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <div class="warning-mark"><svg><use href="#i-warning"/></svg></div>
+      <p class="eyebrow">ADVANCED CHOICE</p>
+      <h2>Protection will be off</h2>
+      <p>Headroom lowers the signal before EQ so boosted frequencies stay below digital full scale. Turning it off can cause audible distortion at the output or during encoding.</p>
+      <ul>
+        <li>UZjam will keep your exact curve and apply no protective attenuation.</li>
+        <li>The graph and meters will stay red whenever clipping is possible.</li>
+        <li>You can turn protection back on at any time.</li>
+      </ul>
+      <label class="acknowledge"><input id="clipAcknowledge" type="checkbox"><span>I understand and want unrestricted output.</span></label>
+      <div class="dialog-actions"><button class="button subtle" value="cancel">Keep protection</button><button id="confirmClipButton" class="button danger" value="default" disabled>Allow clipping</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="newProfileDialog" class="modal compact-modal">
+    <form method="dialog" id="newProfileForm">
+      <button class="dialog-close" value="cancel" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <p class="eyebrow">NEW PROFILE</p><h2>Save this tuning</h2>
+      <label class="dialog-field"><span>Name</span><input id="newProfileName" type="text" maxlength="42" placeholder="e.g. Late-night detail" required></label>
+      <label class="dialog-field"><span>Headphone or output</span><input id="newProfileDevice" type="text" maxlength="50" placeholder="Optional"></label>
+      <div class="dialog-actions"><button class="button subtle" value="cancel">Cancel</button><button class="button primary" value="default">Save profile</button></div>
+    </form>
+  </dialog>
+
+  <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

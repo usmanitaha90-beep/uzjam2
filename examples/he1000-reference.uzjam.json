@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "he1000-reference",
+  "name": "HE1000 — Reference",
+  "filters": [
+    { "id": "f1", "enabled": true, "kind": "lowShelf", "frequencyHz": 65.0, "gainDb": 4.0, "q": 0.7, "channel": "stereo" },
+    { "id": "f2", "enabled": true, "kind": "peak", "frequencyHz": 120.0, "gainDb": 1.2, "q": 0.95, "channel": "stereo" },
+    { "id": "f3", "enabled": true, "kind": "peak", "frequencyHz": 280.0, "gainDb": -0.5, "q": 0.9, "channel": "stereo" },
+    { "id": "f4", "enabled": true, "kind": "peak", "frequencyHz": 2600.0, "gainDb": -1.2, "q": 1.35, "channel": "stereo" },
+    { "id": "f5", "enabled": true, "kind": "peak", "frequencyHz": 6200.0, "gainDb": -1.8, "q": 2.6, "channel": "stereo" },
+    { "id": "f6", "enabled": true, "kind": "highShelf", "frequencyHz": 10800.0, "gainDb": 1.0, "q": 0.7, "channel": "stereo" }
+  ],
+  "dsp": {
+    "enabled": true,
+    "preampDb": -4.2,
+    "headroomMode": "auto",
+    "manualHeadroomDb": 4.2,
+    "safetyMarginDb": 0.3,
+    "clippingPolicy": "auto",
+    "limiterEnabled": false
+  },
+  "target": null,
+  "deviceBinding": {
+    "headphoneId": "hifiman-he1000-stealth",
+    "outputDeviceId": null
+  },
+  "metadata": {
+    "createdAtUtc": "2026-10-04T00:00:00Z",
+    "modifiedAtUtc": "2026-10-04T00:00:00Z",
+    "source": "uzjam-v2-migration"
+  }
+}

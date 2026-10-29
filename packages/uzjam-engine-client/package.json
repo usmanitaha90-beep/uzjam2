@@ -1,0 +1,15 @@
+{
+  "name": "@uzjam/engine-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@uzjam/contract": "file:../uzjam-contract"
+  }
+}

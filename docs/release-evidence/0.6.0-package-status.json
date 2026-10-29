@@ -1,0 +1,10 @@
+{
+    "installable":  false,
+    "architecture":  "x64",
+    "deviceExtensionTemplate":  "uzjam-device-extension.template.inf",
+    "windowsSdk":  "10.0.26100.0",
+    "reason":  "Catalog generation, Microsoft driver signing, and a device-specific extension INF are required.",
+    "componentInf":  "uzjam-apo-component.inf"
+}
+
+

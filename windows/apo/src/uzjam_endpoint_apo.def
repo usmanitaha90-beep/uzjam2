@@ -1,0 +1,4 @@
+LIBRARY "uzjam_endpoint_apo"
+EXPORTS
+    DllCanUnloadNow PRIVATE
+    DllGetClassObject PRIVATE

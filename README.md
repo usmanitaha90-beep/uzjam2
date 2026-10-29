@@ -112,4 +112,3 @@ The direct audio engine is implemented and locally testable, but Windows distrib
 - AAudio/Oboe, CoreAudio, PipeWire, and iOS adapters remain future work; the shared profile and DSP crates do not import WASAPI.
 
 The response display reports transfer gain. Actual dBFS is shown only from live Web Audio metering because output peak cannot be inferred from an EQ curve alone.
-

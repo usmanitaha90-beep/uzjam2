@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>UZjam Tab Audio</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header>
+      <div class="brand-mark">UZ</div>
+      <div><strong>UZjam Tab Audio</strong><span>Chrome → Rust DSP → your DAC</span></div>
+    </header>
+
+    <main>
+      <section id="pairingPanel" class="pairing-panel">
+        <label for="pairingCode">Pairing code from UZjam</label>
+        <div class="code-row">
+          <input id="pairingCode" maxlength="12" autocomplete="off" spellcheck="false" placeholder="A1B2C3D4E5">
+          <button id="saveCode" class="primary">Pair</button>
+        </div>
+        <p>Open UZjam → Source → Browser tab to see this code.</p>
+      </section>
+
+      <section id="statusPanel" class="status-panel" aria-live="polite">
+        <i></i><div><strong id="statusTitle">Ready to connect</strong><span id="statusText">Choose a Chrome tab below.</span></div>
+        <button id="stopCapture" class="quiet" hidden>Stop</button>
+      </section>
+
+      <div class="tabs-heading"><span>OPEN TABS</span><button id="refreshTabs" class="text-button">Refresh</button></div>
+      <div id="tabList" class="tab-list"><p class="empty">Loading tabs…</p></div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

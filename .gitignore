@@ -1,0 +1,13 @@
+node_modules/
+target/
+deliverables/
+release/
+*.tmp
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
