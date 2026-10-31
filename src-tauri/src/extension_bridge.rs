@@ -394,7 +394,9 @@ fn handle_connection(
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) =>
             {
-                thread::sleep(Duration::from_millis(10));
+                // Keep the socket worker responsive relative to the 512-frame
+                // capture cadence; a 10 ms poll can starve short output queues.
+                thread::sleep(Duration::from_millis(1));
             }
             Err(_) => break,
         }
