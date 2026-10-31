@@ -57,6 +57,22 @@ function closeTo(actual: number, expected: number, tolerance = 1e-6): void {
   );
 }
 
+test("auto headroom covers shelf gain outside the display band through DC and Nyquist", () => {
+  for (const sampleRateHz of [44_100, 48_000, 96_000]) {
+    for (const kind of ["lowShelf", "highShelf"] as const) {
+      const shelf = { ...peak("shelf", 18, kind === "lowShelf" ? 20 : 20_000), kind };
+      const client = new BrowserUzjamEngineClient(profile([shelf]));
+      const analysis = client.analyzeSync({ sampleRateHz });
+      for (const frequency of [0, 0.1, 10, 20_000, sampleRateHz / 2 * 0.999, sampleRateHz / 2]) {
+        const netGain = filterMagnitudeDb(shelf, sampleRateHz, frequency) + analysis.headroom.effectivePreampDb;
+        assert.ok(netGain <= -0.3 + 1e-6, `${kind} at ${frequency} Hz left ${netGain} dB`);
+      }
+      // Safety changes must not stretch the user-facing response display.
+      assert.ok(analysis.requestedResponse.left.at(-1)!.frequencyHz <= 20_000.0001);
+    }
+  }
+});
+
 test("owns validated clones rather than caller objects", async () => {
   const initial = profile([peak("one", 6)]);
   const client = new BrowserUzjamEngineClient(initial);

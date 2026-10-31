@@ -540,6 +540,11 @@ impl AudioHost {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         *slot = Some(next);
         drop(slot);
+        // Recovery must replay the latest accepted tuning, not the profile
+        // captured when the route was first started.
+        if let Some(request) = self.last_request.as_mut() {
+            request.profile = profile;
+        }
         Ok(self.status())
     }
 
@@ -696,4 +701,82 @@ fn status_from_stream(
 
 fn audio_error(error: AudioError) -> String {
     error.to_string()
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    struct TestStream(AudioRoute);
+
+    impl AudioStream for TestStream {
+        fn route(&self) -> &AudioRoute {
+            &self.0
+        }
+        fn config(&self) -> StreamConfig {
+            StreamConfig::default()
+        }
+        fn start(&mut self) -> Result<(), AudioError> {
+            Ok(())
+        }
+        fn stop(&mut self) -> Result<(), AudioError> {
+            Ok(())
+        }
+        fn state(&self) -> StreamState {
+            StreamState::Running
+        }
+        fn telemetry(&self) -> StreamTelemetry {
+            StreamTelemetry::default()
+        }
+        fn take_error(&mut self) -> Option<AudioError> {
+            None
+        }
+    }
+
+    #[test]
+    fn recovery_retains_latest_accepted_profile_and_exact_endpoint_ids() {
+        let original: UzjamProfile =
+            serde_json::from_str(include_str!("../../examples/he1000-reference.uzjam.json"))
+                .unwrap();
+        let mut host = AudioHost::new();
+        host.stream = Some(Box::new(TestStream(AudioRoute {
+            source_device_id: "original-source".into(),
+            source_kind: AudioSourceKind::SystemLoopback,
+            output_device_id: "original-dac".into(),
+        })));
+        host.active_sample_rate_hz = 48_000;
+        host.pending_processor = Some(Arc::new(Mutex::new(None)));
+        host.last_request = Some(NativeStartRequest {
+            source_device_id: "original-source".into(),
+            output_device_id: "original-dac".into(),
+            preferred_buffer_frames: Some(256),
+            profile: original.clone(),
+        });
+
+        let mut edited = original;
+        edited.filters[0].gain_db = 7.0;
+        host.update_profile(edited.clone()).unwrap();
+        let recovery = host.last_request.as_ref().unwrap();
+        assert_eq!(recovery.profile.filters[0].gain_db, 7.0);
+        assert_eq!(recovery.source_device_id, "original-source");
+        assert_eq!(recovery.output_device_id, "original-dac");
+        assert!(host
+            .pending_processor
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .is_some());
+
+        edited.filters[0].frequency_hz = 48_000.0;
+        assert!(host.update_profile(edited).is_err());
+        assert_eq!(
+            host.last_request.as_ref().unwrap().profile.filters[0].gain_db,
+            7.0
+        );
+        assert_eq!(
+            host.last_request.as_ref().unwrap().profile.filters[0].frequency_hz,
+            65.0
+        );
+    }
 }

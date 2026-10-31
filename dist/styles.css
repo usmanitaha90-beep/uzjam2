@@ -769,6 +769,7 @@ svg { display: block; }
 .headroom-toggle-row strong { font-size: 12px; }
 .headroom-toggle-row small { color: var(--muted); font-size: 10px; }
 .true-peak-row { padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.true-peak-row p { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
 
 body[data-mode="basic"] .advanced-only { display: none !important; }
 body[data-mode="basic"] .q-control { display: none; }

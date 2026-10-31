@@ -8,10 +8,10 @@
     "offscreen",
     "storage",
     "tabCapture",
-    "tabs"
+    "activeTab"
   ],
   "host_permissions": [
-    "ws://127.0.0.1/*"
+    "http://127.0.0.1/*"
   ],
   "background": {
     "service_worker": "background.js"

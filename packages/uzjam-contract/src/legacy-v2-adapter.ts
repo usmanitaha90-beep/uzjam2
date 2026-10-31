@@ -28,6 +28,8 @@ export interface CurrentV2Filter {
   q?: number;
   channel?: string;
   enabled?: boolean;
+  /** Neutral editor controls absent from an imported canonical profile. */
+  editorOnly?: boolean;
 }
 
 export interface CurrentV2State {
@@ -106,7 +108,12 @@ export function migrateCurrentV2State(
   state: CurrentV2State,
   nowUtc = new Date().toISOString(),
 ): UzjamProfile {
-  const sourceFilters = [...(state.toneBands ?? []), ...(state.bands ?? [])];
+  const sourceFilters = [...(state.toneBands ?? []), ...(state.bands ?? [])].filter((filter) => {
+    if (!filter.editorOnly) return true;
+    const kind = currentKind(filter.kind ?? filter.type);
+    return filter.enabled !== false &&
+      (!["peak", "lowShelf", "highShelf"].includes(kind) || Number(filter.gainDb ?? filter.gain ?? 0) !== 0);
+  });
   const filters: EqFilter[] = sourceFilters.map((filter, index) => {
     const frequency = Number(filter.frequencyHz ?? filter.frequency ?? 1000);
     const gain = Number(filter.gainDb ?? filter.gain ?? 0);

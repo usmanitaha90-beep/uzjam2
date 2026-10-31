@@ -1,12 +1,13 @@
 import { migrateCurrentV2State } from "@uzjam/contract";
-import { BrowserUzjamEngineClient, serializeUzjamPresetFile, uzjamPresetFilename } from "@uzjam/engine-client";
+import { BrowserUzjamEngineClient, parseUzjamPresetFile, serializeUzjamPresetFile, uzjamPresetFilename } from "@uzjam/engine-client";
 import {
   APP_STATE_SCHEMA_VERSION,
   clearPersistedState,
   createSettingsBackup,
   loadPersistedState,
   readSettingsBackup,
-  savePersistedState
+  savePersistedState,
+  validatePersistedState
 } from "./persistence.js";
 import { createSessionPersistence } from "./session-persistence.js";
 
@@ -345,7 +346,7 @@ import { createSessionPersistence } from "./session-persistence.js";
   };
 
   function legacyBandFromCanonical(filter) {
-    var kind = filter.kind === "lowShelf" ? "lowshelf" : filter.kind === "highShelf" ? "highshelf" : "peaking";
+    var kind = filter.kind === "peak" ? "peaking" : filter.kind.toLowerCase();
     return {
       id: filter.id,
       type: kind,
@@ -357,27 +358,34 @@ import { createSessionPersistence } from "./session-persistence.js";
     };
   }
 
-  function hydrateEditorFromProfile(profile) {
+  function handlingFromProfile(profile) {
+    if (profile.dsp.clippingPolicy === "allowClipping" || profile.dsp.headroomMode === "off") return "clip";
+    if (profile.dsp.clippingPolicy === "smooth") return "smooth";
+    if (profile.dsp.clippingPolicy === "curve" || profile.dsp.headroomMode === "manual") return "curve";
+    return "auto";
+  }
+
+  function hydrateEditorFromProfile(profile, bandCount) {
     if (!profile || profile.schemaVersion !== 1 || !Array.isArray(profile.filters)) return;
     var tone = profile.filters.filter(function (filter) { return !!TONE_META[filter.id]; }).map(legacyBandFromCanonical);
     var advanced = profile.filters.filter(function (filter) { return !TONE_META[filter.id]; }).map(legacyBandFromCanonical);
-    if (tone.length) state.toneBands = migrateToneBands(tone);
-    if (advanced.length) state.bands = advanced;
+    state.toneBands = createToneBands().map(function (band) {
+      return tone.find(function (item) { return item.id === band.id; }) || Object.assign(band, { editorOnly: true });
+    });
+    state.bands = advanced.length ? advanced : createStandardBands(10).map(function (band) { return Object.assign(band, { editorOnly: true }); });
+    state.advancedBandCount = [10, 15, 30].indexOf(bandCount) !== -1 ? bandCount : advanced.length === 15 ? 15 : advanced.length >= 20 ? 30 : 10;
     state.eqEnabled = profile.dsp.enabled !== false;
     state.preampDb = Number(profile.dsp.preampDb) || 0;
     state.manualHeadroom = Math.max(0, Number(profile.dsp.manualHeadroomDb) || 0);
-    state.truePeakGuard = profile.dsp.limiterEnabled === true || Number(profile.dsp.safetyMarginDb) >= .99;
-    if (profile.dsp.clippingPolicy === "allowClipping" || profile.dsp.headroomMode === "off") state.handling = "clip";
-    else if (profile.dsp.clippingPolicy === "smooth") state.handling = "smooth";
-    else if (profile.dsp.clippingPolicy === "curve" || profile.dsp.headroomMode === "manual") state.handling = "curve";
-    else state.handling = "auto";
+    state.truePeakGuard = profile.dsp.limiterEnabled === true;
+    state.handling = handlingFromProfile(profile);
     state.headroomEnabled = state.handling !== "clip";
     state.activeProfileId = profile.id;
     state.activeProfileName = profile.name;
     state.bandBanks[String(state.advancedBandCount)] = clone(state.bands);
   }
 
-  if (state.uzjamProfile) hydrateEditorFromProfile(state.uzjamProfile);
+  if (state.uzjamProfile) hydrateEditorFromProfile(state.uzjamProfile, state.advancedBandCount);
   var hydratedEditor = state.mode === "basic" ? state.toneBands : state.bands;
   if (!hydratedEditor.some(function (band) { return band.id === state.selectedBandId; })) state.selectedBandId = hydratedEditor[0].id;
   var initialProfile = state.uzjamProfile || migrateCurrentV2State(state);
@@ -388,8 +396,20 @@ import { createSessionPersistence } from "./session-persistence.js";
     var current = state.uzjamProfile || engineClient.getProfileSync();
     var now = new Date().toISOString();
     var profile = migrateCurrentV2State(state, now);
-    profile.metadata.createdAtUtc = current && current.metadata ? current.metadata.createdAtUtc : now;
-    profile.metadata.modifiedAtUtc = now;
+    if (current) {
+      // Preserve independent canonical settings until the corresponding editor
+      // control changes; a limiter toggle must not silently happen on import.
+      if (state.handling === handlingFromProfile(current) && state.headroomEnabled === (state.handling !== "clip")) {
+        profile.dsp.headroomMode = current.dsp.headroomMode;
+        profile.dsp.clippingPolicy = current.dsp.clippingPolicy;
+      }
+      if (state.truePeakGuard === current.dsp.limiterEnabled) {
+        profile.dsp.safetyMarginDb = current.dsp.safetyMarginDb;
+      }
+      var order = new Map(current.filters.map(function (filter, index) { return [filter.id, index]; }));
+      profile.filters.sort(function (a, b) { return (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity); });
+      profile.metadata = Object.assign({}, current.metadata, { modifiedAtUtc: now });
+    }
     profile.target = current ? current.target : null;
     profile.deviceBinding = current ? current.deviceBinding : null;
     return profile;
@@ -943,6 +963,7 @@ import { createSessionPersistence } from "./session-persistence.js";
       restore = invokeNative("native_load_state").then(function (saved) {
         var snapshot = saved && saved.snapshot ? saved.snapshot : saved;
         if (snapshot && typeof snapshot === "object" && snapshot.schemaVersion) {
+          validatePersistedState(snapshot);
           var committed = sessionPersistence ? sessionPersistence.replaceAndSuspend(snapshot) : (savePersistedState(localStorage, snapshot), true);
           if (!committed) return false;
           persistenceSuppressed = true;
@@ -992,9 +1013,7 @@ import { createSessionPersistence } from "./session-persistence.js";
   }
 
   function typeLabel(type) {
-    if (type === "lowshelf") return "Low shelf";
-    if (type === "highshelf") return "High shelf";
-    return "Peak";
+    return { lowshelf: "Low shelf", highshelf: "High shelf", lowpass: "Low pass", highpass: "High pass", notch: "Notch", bandpass: "Band pass", allpass: "All pass", peaking: "Peak" }[type] || type;
   }
 
   function frequencyToRatio(frequency) {
@@ -1044,6 +1063,10 @@ import { createSessionPersistence } from "./session-persistence.js";
 
   function eqSnapshot() {
     return {
+      uzjamProfile: clone(state.uzjamProfile),
+      activeProfileId: state.activeProfileId,
+      activeProfileName: state.activeProfileName,
+      eqEnabled: state.eqEnabled,
       bands: clone(state.bands),
       toneBands: clone(state.toneBands),
       preampDb: state.preampDb,
@@ -1065,6 +1088,10 @@ import { createSessionPersistence } from "./session-persistence.js";
   }
 
   function restoreSnapshot(snapshot) {
+    state.uzjamProfile = clone(snapshot.uzjamProfile);
+    state.activeProfileId = snapshot.activeProfileId;
+    state.activeProfileName = snapshot.activeProfileName;
+    state.eqEnabled = snapshot.eqEnabled;
     state.bands = clone(snapshot.bands);
     if (snapshot.toneBands) state.toneBands = clone(snapshot.toneBands);
     if (snapshot.preampDb != null) state.preampDb = snapshot.preampDb;
@@ -1385,6 +1412,7 @@ import { createSessionPersistence } from "./session-persistence.js";
   function setFaderValue(item, value, lightweight) {
     if (item.preamp) state.preampDb = round(clamp(Number(value) || 0, -24, 12), 1);
     else item.band.gain = round(clamp(Number(value) || 0, -bandGainLimit(), bandGainLimit()), 1);
+    syncEngineAnalysis();
     renderGraph(true);
     renderSafety();
     updateFaderValues();
@@ -1708,7 +1736,7 @@ import { createSessionPersistence } from "./session-persistence.js";
   function applyProfile(profile, starter) {
     pushHistory();
     if (profile.uzjamProfile) {
-      hydrateEditorFromProfile(profile.uzjamProfile);
+      hydrateEditorFromProfile(profile.uzjamProfile, profile.advancedBandCount);
       state.uzjamProfile = clone(profile.uzjamProfile);
       state.activeProfileId = starter ? uid("starter-session") : profile.id;
       state.activeProfileName = profile.name;
@@ -1924,6 +1952,11 @@ import { createSessionPersistence } from "./session-persistence.js";
     return isTabCaptureActive() || !$("#audioElement").paused;
   }
 
+  function webAudioQ(band) {
+    // Web Audio defines pass-filter Q in dB; the portable profile uses linear Q.
+    return band.type === "lowpass" || band.type === "highpass" ? 20 * Math.log10(band.q) : band.q;
+  }
+
   function rebuildAudioGraph() {
     if (!audioContext || !audioSourceNode) return;
     syncEngineAnalysis();
@@ -1970,9 +2003,9 @@ import { createSessionPersistence } from "./session-persistence.js";
       activeBands.forEach(function (band) {
         var filter = audioContext.createBiquadFilter();
         filter.type = band.type;
-        filter.frequency.value = clamp(band.frequency, 20, audioContext.sampleRate * .45);
+        filter.frequency.value = band.frequency;
         filter.gain.value = effectiveGainForBand(band);
-        filter.Q.value = clamp(band.q, .1, 24);
+        filter.Q.value = webAudioQ(band);
         nodes.push(filter);
         filterNodes.push({ bandId: band.id, channel: channel, node: filter });
         if (!firstNode) firstNode = filter;
@@ -2015,9 +2048,9 @@ import { createSessionPersistence } from "./session-persistence.js";
     audioGraph.filterNodes.forEach(function (entry) {
       var band = allBands.find(function (item) { return item.id === entry.bandId; });
       if (!band) return;
-      entry.node.frequency.setTargetAtTime(clamp(band.frequency, 20, audioContext.sampleRate * .45), now, .012);
+      entry.node.frequency.setTargetAtTime(band.frequency, now, .012);
       entry.node.gain.setTargetAtTime(effectiveGainForBand(band), now, .012);
-      entry.node.Q.setTargetAtTime(clamp(band.q, .1, 24), now, .012);
+      entry.node.Q.setTargetAtTime(webAudioQ(band), now, .012);
     });
     audioGraph.safety = safety;
   }
@@ -2155,16 +2188,28 @@ import { createSessionPersistence } from "./session-persistence.js";
       showToast("No supported audio found", "Choose FLAC, ALAC, WAV, AIFF, MP3, M4A, AAC, OGG, or Opus files.", "error");
       return [];
     }
-    var existingKeys = new Set(state.library.map(function (item) { return (item.filename || item.title) + ":" + (item.size || 0); }));
+    var existingItems = new Map(state.library.map(function (item) { return [(item.filename || item.title) + ":" + (item.size || 0), item]; }));
     var duplicates = 0;
     var addedItems = [];
+    var reconnectedItems = [];
     files.forEach(function (file) {
       var key = file.name + ":" + file.size;
-      if (existingKeys.has(key)) {
+      var existing = existingItems.get(key);
+      if (existing) {
+        if (!fileObjects.has(existing.id)) {
+          fileObjects.set(existing.id, file);
+          reconnectedItems.push(existing);
+          state.queue.forEach(function (track) {
+            if (track.libraryId !== existing.id) return;
+            if (track.url) URL.revokeObjectURL(track.url);
+            track.url = URL.createObjectURL(file);
+            track.playable = true;
+          });
+          return;
+        }
         duplicates += 1;
         return;
       }
-      existingKeys.add(key);
       var extension = file.name.split(".").pop().toUpperCase();
       var item = {
         id: uid("local"),
@@ -2178,19 +2223,24 @@ import { createSessionPersistence } from "./session-persistence.js";
         demo: false
       };
       fileObjects.set(item.id, file);
+      existingItems.set(key, item);
       state.library.push(item);
       addedItems.push(item);
     });
 
-    if (addedItems.length) {
-      var tracks = addedItems.map(libraryItemToQueueTrack);
+    if (addedItems.length || reconnectedItems.length) {
+      var missingFromQueue = reconnectedItems.filter(function (item) {
+        return !state.queue.some(function (track) { return track.libraryId === item.id; });
+      });
+      var tracks = addedItems.concat(missingFromQueue).map(libraryItemToQueueTrack);
       state.queue = state.queue.concat(tracks);
       if (state.currentQueueIndex < 0) state.currentQueueIndex = 0;
       loadTrack(state.currentQueueIndex, false);
       renderLibrary();
       renderQueue();
       saveState();
-      showToast("Added " + addedItems.length + (addedItems.length === 1 ? " track" : " tracks"), "Ready in your library and queue.");
+      if (addedItems.length) showToast("Added " + addedItems.length + (addedItems.length === 1 ? " track" : " tracks"), "Ready in your library and queue.");
+      if (reconnectedItems.length) showToast("Reconnected " + reconnectedItems.length + (reconnectedItems.length === 1 ? " track" : " tracks"), "Local file access restored without duplicating your library or queue.");
     }
     if (duplicates && state.settings.duplicateReport) showToast("Skipped " + duplicates + (duplicates === 1 ? " duplicate" : " duplicates"), "Existing files were left unchanged.");
     return addedItems;
@@ -2550,6 +2600,7 @@ import { createSessionPersistence } from "./session-persistence.js";
     announceCapture("Waiting for the UZjam Chrome extension");
     try {
       if (!nativeAudio.devices) await refreshNativeDevices({ silent: true });
+      if (requestId !== tabCapture.requestId) return;
       var outputId = $("#nativeOutputDevice").value || state.settings.nativeOutputDeviceId;
       if (!outputId) throw new Error("Connect your DAC, then choose it as the Listening output in Settings.");
       if (state.settings.nativeDirectEnabled) {
@@ -2784,6 +2835,21 @@ import { createSessionPersistence } from "./session-persistence.js";
   function importPresetFile(file) {
     file.text().then(function (text) {
       var data = JSON.parse(text);
+      if (data && data.dsp && Array.isArray(data.filters)) {
+        var canonical = parseUzjamPresetFile(text);
+        // Reject profiles that cannot run on this route before changing state.
+        new BrowserUzjamEngineClient(canonical).analyzeSync({ sampleRateHz: audioContext ? audioContext.sampleRate : SAMPLE_RATE_FALLBACK });
+        pushHistory();
+        state.uzjamProfile = canonical;
+        hydrateEditorFromProfile(canonical);
+        state.selectedBandId = (state.mode === "basic" ? state.toneBands[0] : state.bands[0]).id;
+        soloBandId = null;
+        renderEq();
+        saveState();
+        navigate("studio");
+        showToast("Preset imported", canonical.name + " loaded with " + canonical.filters.length + " filters.");
+        return;
+      }
       var preset = validatePreset(data);
       pushHistory();
       state.bands = preset.bands;
@@ -3279,8 +3345,15 @@ import { createSessionPersistence } from "./session-persistence.js";
       $("#newProfileDialog").showModal();
       setTimeout(function () { $("#newProfileName").focus(); }, 40);
     });
+    $$('#newProfileForm button[value="cancel"]').forEach(function (button) {
+      button.addEventListener("click", function () { $("#newProfileDialog").close(); });
+    });
     $("#newProfileForm").addEventListener("submit", function (event) {
       event.preventDefault();
+      if (event.submitter && event.submitter.value === "cancel") {
+        $("#newProfileDialog").close();
+        return;
+      }
       var name = $("#newProfileName").value.trim();
       if (!name) return;
       syncEngineAnalysis();
@@ -3295,6 +3368,7 @@ import { createSessionPersistence } from "./session-persistence.js";
         device: $("#newProfileDevice").value.trim() || "Custom output",
         color: randomColor(name),
         uzjamProfile: canonical,
+        advancedBandCount: state.advancedBandCount,
         user: true
       };
       state.profiles.unshift(profile);

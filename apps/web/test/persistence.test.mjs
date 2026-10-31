@@ -10,6 +10,7 @@ import {
   savePersistedState,
 } from "../src/persistence.js";
 import { createSessionPersistence } from "../src/session-persistence.js";
+import { migrateCurrentV2State } from "@uzjam/contract";
 
 class MemoryStorage {
   constructor(entries = {}) {
@@ -28,6 +29,36 @@ class MemoryStorage {
     this.values.delete(key);
   }
 }
+
+test("invalid embedded profiles are rejected before replacing good settings", () => {
+  const storage = new MemoryStorage();
+  const valid = {
+    schemaVersion: APP_STATE_SCHEMA_VERSION,
+    settings: {}, profiles: [], bands: [],
+    uzjamProfile: migrateCurrentV2State({}),
+  };
+  savePersistedState(storage, valid);
+  const invalid = structuredClone(valid);
+  invalid.uzjamProfile.schemaVersion = 999;
+  assert.throws(() => readSettingsBackup(createSettingsBackup(invalid)), /schemaVersion/);
+  assert.throws(() => savePersistedState(storage, invalid), /schemaVersion/);
+  assert.deepEqual(loadPersistedState(storage).state, valid);
+  invalid.uzjamProfile = valid.uzjamProfile;
+  invalid.profiles = [{ uzjamProfile: { schemaVersion: 999 } }];
+  assert.throws(() => readSettingsBackup(createSettingsBackup(invalid)), /schemaVersion/);
+});
+
+test("startup skips a syntactically valid but corrupt primary or pending profile", () => {
+  const valid = { uzjamProfile: migrateCurrentV2State({}) };
+  const invalid = { uzjamProfile: { schemaVersion: 999 } };
+  const storage = new MemoryStorage({
+    [STORAGE_KEYS.primary]: JSON.stringify(invalid),
+    [STORAGE_KEYS.pending]: JSON.stringify(invalid),
+    [STORAGE_KEYS.backup]: JSON.stringify(valid),
+  });
+  assert.equal(loadPersistedState(storage).source, "backup");
+  assert.deepEqual(loadPersistedState(storage).state, valid);
+});
 
 test("commits state and retains the prior valid commit", () => {
   const storage = new MemoryStorage();

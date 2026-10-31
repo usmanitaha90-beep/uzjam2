@@ -261,13 +261,17 @@ function headroomFrequencies(
   sampleRateHz: number,
   requestedPointCount: number,
 ): number[] {
-  const frequencies = logFrequencyGrid(
-    sampleRateHz,
-    Math.max(HEADROOM_SCAN_POINTS, requestedPointCount),
+  // The response display is intentionally audible-band only. Protection must
+  // also cover DC and the entire digital bandwidth through Nyquist.
+  const maximumFrequency = sampleRateHz / 2;
+  const minimumFrequency = Math.min(1, maximumFrequency * 0.5);
+  const count = Math.max(HEADROOM_SCAN_POINTS, requestedPointCount);
+  const frequencies = Array.from({ length: count }, (_, index) =>
+    minimumFrequency * (maximumFrequency / minimumFrequency) ** (index / (count - 1)),
   );
-  const maximumFrequency = frequencies[frequencies.length - 1]!;
+  frequencies.push(0, maximumFrequency);
   for (const filter of activeFilters) {
-    if (filter.frequencyHz >= MIN_FREQUENCY_HZ && filter.frequencyHz <= maximumFrequency) {
+    if (filter.frequencyHz > 0 && filter.frequencyHz < maximumFrequency) {
       frequencies.push(filter.frequencyHz);
     }
   }

@@ -1,6 +1,14 @@
 const OFFSCREEN_PATH = "offscreen.html";
+let captureGeneration = 0;
+let offscreenCreation = null;
 
 async function ensureOffscreenDocument() {
+  if (offscreenCreation) return offscreenCreation;
+  offscreenCreation = createOffscreenDocument().finally(() => { offscreenCreation = null; });
+  return offscreenCreation;
+}
+
+async function createOffscreenDocument() {
   const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_PATH);
   const contexts = await chrome.runtime.getContexts({
     contextTypes: ["OFFSCREEN_DOCUMENT"],
@@ -27,10 +35,17 @@ async function updateBadge(status) {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.target === "offscreen") return false;
   if (message.type === "START_CAPTURE") {
+    const token = ++captureGeneration;
     (async () => {
       try {
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (token !== captureGeneration) return sendResponse({ ok: false, cancelled: true });
+        if (!activeTab || activeTab.id !== message.tabId) {
+          throw new Error("Open the UZjam extension on the tab you want to hear, then connect it there.");
+        }
         const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: message.tabId });
         await ensureOffscreenDocument();
+        if (token !== captureGeneration) return sendResponse({ ok: false, cancelled: true });
         const response = await chrome.runtime.sendMessage({
           target: "offscreen",
           type: "START_CAPTURE",
@@ -40,6 +55,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
         sendResponse(response || { ok: true });
       } catch (error) {
+        if (token !== captureGeneration) return sendResponse({ ok: false, cancelled: true });
         const status = { state: "error", message: error.message || String(error) };
         await updateBadge(status);
         sendResponse({ ok: false, error: status.message });
@@ -49,11 +65,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "STOP_CAPTURE") {
+    const token = ++captureGeneration;
     (async () => {
-      await ensureOffscreenDocument();
-      const response = await chrome.runtime.sendMessage({ target: "offscreen", type: "STOP_CAPTURE" });
-      await updateBadge({ state: "idle" });
-      sendResponse(response || { ok: true });
+      try {
+        await ensureOffscreenDocument();
+        if (token !== captureGeneration) return sendResponse({ ok: false, cancelled: true });
+        const response = await chrome.runtime.sendMessage({ target: "offscreen", type: "STOP_CAPTURE" });
+        if (token === captureGeneration) await updateBadge({ state: "idle" });
+        sendResponse(response || { ok: true });
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message || String(error) });
+      }
     })();
     return true;
   }
