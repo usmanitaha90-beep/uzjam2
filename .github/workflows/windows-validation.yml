@@ -1,0 +1,38 @@
+name: Windows validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [fix/windows-core-reliability]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: npm ci
+      - run: npm test
+      - run: npm run validate:schema
+      - run: cargo test --locked --workspace --all-targets
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: npm run desktop:build
+      - name: Upload unsigned Windows test installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: uzjam-windows-test-${{ github.sha }}
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14

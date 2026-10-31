@@ -1,3 +1,5 @@
+import { validateAndCloneProfile } from "@uzjam/engine-client";
+
 export const APP_STATE_SCHEMA_VERSION = 6;
 
 export const STORAGE_KEYS = Object.freeze({
@@ -6,11 +8,35 @@ export const STORAGE_KEYS = Object.freeze({
   backup: "uzjam-v2-state-backup",
 });
 
+/** Validate embedded profiles before committing or choosing a recovery slot. */
+export function validatePersistedState(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new Error("Application settings must be an object.");
+  }
+  if (state.schemaVersion != null && (!Number.isInteger(state.schemaVersion) || state.schemaVersion < 0 || state.schemaVersion > APP_STATE_SCHEMA_VERSION)) {
+    throw new Error("This settings version is not supported by this UZjam build.");
+  }
+  if (state.settings != null && (typeof state.settings !== "object" || Array.isArray(state.settings))) {
+    throw new Error("Application preferences must be an object.");
+  }
+  ["bands", "toneBands", "profiles", "queue", "library"].forEach(function (key) {
+    if (state[key] == null) return;
+    if (!Array.isArray(state[key]) || state[key].some(function (item) { return !item || typeof item !== "object" || Array.isArray(item); })) {
+      throw new Error("Invalid " + key + " in application settings.");
+    }
+  });
+  if (state.uzjamProfile != null) validateAndCloneProfile(state.uzjamProfile);
+  (state.profiles || []).forEach(function (profile) {
+    if (profile.uzjamProfile != null) validateAndCloneProfile(profile.uzjamProfile);
+  });
+  return state;
+}
+
 function parseObject(raw) {
   if (typeof raw !== "string" || raw.length === 0) return null;
   try {
     var value = JSON.parse(raw);
-    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+    return validatePersistedState(value);
   } catch (error) {
     return null;
   }
@@ -78,6 +104,7 @@ export function loadPersistedState(storage, keys = STORAGE_KEYS) {
  */
 export function savePersistedState(storage, state, keys = STORAGE_KEYS) {
   if (!storage) throw new Error("Persistent storage is unavailable.");
+  validatePersistedState(state);
   var serialized = JSON.stringify(state);
   var previousRaw = read(storage, keys.primary);
   var previous = parseObject(previousRaw);
@@ -126,5 +153,5 @@ export function readSettingsBackup(value) {
   if (stateVersion > APP_STATE_SCHEMA_VERSION) {
     throw new Error("This backup was created by a newer UZjam build.");
   }
-  return state;
+  return validatePersistedState(state);
 }

@@ -841,18 +841,24 @@ fn reported_effective_filters(
 }
 
 fn headroom_frequency_grid(profile: &UzjamProfile, sample_rate_hz: f64, points: usize) -> Vec<f64> {
-    let mut frequencies = frequency_grid(sample_rate_hz, points);
-    let minimum_frequency = frequencies[0];
-    let maximum_frequency = frequencies[frequencies.len() - 1];
+    // Keep protection independent of the audible-band display grid.
+    let maximum_frequency = sample_rate_hz * 0.5;
+    let minimum_frequency = 1.0_f64.min(maximum_frequency * 0.5);
+    let count = points.max(2);
+    let mut frequencies: Vec<f64> = (0..count)
+        .map(|index| {
+            let ratio = index as f64 / (count - 1) as f64;
+            minimum_frequency * (maximum_frequency / minimum_frequency).powf(ratio)
+        })
+        .collect();
+    frequencies.extend([0.0, maximum_frequency]);
     frequencies.extend(
         profile
             .filters
             .iter()
             .filter(|filter| filter.enabled)
             .map(|filter| filter.frequency_hz)
-            .filter(|frequency_hz| {
-                *frequency_hz >= minimum_frequency && *frequency_hz <= maximum_frequency
-            }),
+            .filter(|frequency_hz| *frequency_hz > 0.0 && *frequency_hz < maximum_frequency),
     );
     frequencies.sort_by(f64::total_cmp);
     frequencies.dedup();
@@ -957,6 +963,34 @@ mod tests {
             (actual - expected).abs() <= tolerance,
             "expected {expected} +/- {tolerance}, got {actual}"
         );
+    }
+
+    #[test]
+    fn auto_headroom_covers_shelves_outside_the_display_band() {
+        for sample_rate in [44_100.0, 48_000.0, 96_000.0] {
+            for kind in [FilterKind::LowShelf, FilterKind::HighShelf] {
+                let frequency = if kind == FilterKind::LowShelf {
+                    20.0
+                } else {
+                    20_000.0
+                };
+                let shelf = filter(kind, frequency, 18.0, 0.707);
+                let analysis =
+                    analyze_headroom(&profile(vec![shelf.clone()]), sample_rate, 1024).unwrap();
+                for probe in [
+                    0.0,
+                    0.1,
+                    10.0,
+                    20_000.0,
+                    sample_rate * 0.4995,
+                    sample_rate * 0.5,
+                ] {
+                    let net_gain = filter_magnitude_db(&shelf, sample_rate, probe).unwrap()
+                        + analysis.effective_preamp_db;
+                    assert!(net_gain <= -0.3 + 1.0e-6, "unprotected gain: {net_gain}");
+                }
+            }
+        }
     }
 
     #[test]

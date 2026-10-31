@@ -6,7 +6,8 @@ import {
   createSettingsBackup,
   loadPersistedState,
   readSettingsBackup,
-  savePersistedState
+  savePersistedState,
+  validatePersistedState
 } from "./persistence.js";
 import { createSessionPersistence } from "./session-persistence.js";
 
@@ -943,6 +944,7 @@ import { createSessionPersistence } from "./session-persistence.js";
       restore = invokeNative("native_load_state").then(function (saved) {
         var snapshot = saved && saved.snapshot ? saved.snapshot : saved;
         if (snapshot && typeof snapshot === "object" && snapshot.schemaVersion) {
+          validatePersistedState(snapshot);
           var committed = sessionPersistence ? sessionPersistence.replaceAndSuspend(snapshot) : (savePersistedState(localStorage, snapshot), true);
           if (!committed) return false;
           persistenceSuppressed = true;
@@ -1385,6 +1387,7 @@ import { createSessionPersistence } from "./session-persistence.js";
   function setFaderValue(item, value, lightweight) {
     if (item.preamp) state.preampDb = round(clamp(Number(value) || 0, -24, 12), 1);
     else item.band.gain = round(clamp(Number(value) || 0, -bandGainLimit(), bandGainLimit()), 1);
+    syncEngineAnalysis();
     renderGraph(true);
     renderSafety();
     updateFaderValues();
@@ -2155,16 +2158,28 @@ import { createSessionPersistence } from "./session-persistence.js";
       showToast("No supported audio found", "Choose FLAC, ALAC, WAV, AIFF, MP3, M4A, AAC, OGG, or Opus files.", "error");
       return [];
     }
-    var existingKeys = new Set(state.library.map(function (item) { return (item.filename || item.title) + ":" + (item.size || 0); }));
+    var existingItems = new Map(state.library.map(function (item) { return [(item.filename || item.title) + ":" + (item.size || 0), item]; }));
     var duplicates = 0;
     var addedItems = [];
+    var reconnectedItems = [];
     files.forEach(function (file) {
       var key = file.name + ":" + file.size;
-      if (existingKeys.has(key)) {
+      var existing = existingItems.get(key);
+      if (existing) {
+        if (!fileObjects.has(existing.id)) {
+          fileObjects.set(existing.id, file);
+          reconnectedItems.push(existing);
+          state.queue.forEach(function (track) {
+            if (track.libraryId !== existing.id) return;
+            if (track.url) URL.revokeObjectURL(track.url);
+            track.url = URL.createObjectURL(file);
+            track.playable = true;
+          });
+          return;
+        }
         duplicates += 1;
         return;
       }
-      existingKeys.add(key);
       var extension = file.name.split(".").pop().toUpperCase();
       var item = {
         id: uid("local"),
@@ -2178,19 +2193,24 @@ import { createSessionPersistence } from "./session-persistence.js";
         demo: false
       };
       fileObjects.set(item.id, file);
+      existingItems.set(key, item);
       state.library.push(item);
       addedItems.push(item);
     });
 
-    if (addedItems.length) {
-      var tracks = addedItems.map(libraryItemToQueueTrack);
+    if (addedItems.length || reconnectedItems.length) {
+      var missingFromQueue = reconnectedItems.filter(function (item) {
+        return !state.queue.some(function (track) { return track.libraryId === item.id; });
+      });
+      var tracks = addedItems.concat(missingFromQueue).map(libraryItemToQueueTrack);
       state.queue = state.queue.concat(tracks);
       if (state.currentQueueIndex < 0) state.currentQueueIndex = 0;
       loadTrack(state.currentQueueIndex, false);
       renderLibrary();
       renderQueue();
       saveState();
-      showToast("Added " + addedItems.length + (addedItems.length === 1 ? " track" : " tracks"), "Ready in your library and queue.");
+      if (addedItems.length) showToast("Added " + addedItems.length + (addedItems.length === 1 ? " track" : " tracks"), "Ready in your library and queue.");
+      if (reconnectedItems.length) showToast("Reconnected " + reconnectedItems.length + (reconnectedItems.length === 1 ? " track" : " tracks"), "Local file access restored without duplicating your library or queue.");
     }
     if (duplicates && state.settings.duplicateReport) showToast("Skipped " + duplicates + (duplicates === 1 ? " duplicate" : " duplicates"), "Existing files were left unchanged.");
     return addedItems;
@@ -3279,8 +3299,15 @@ import { createSessionPersistence } from "./session-persistence.js";
       $("#newProfileDialog").showModal();
       setTimeout(function () { $("#newProfileName").focus(); }, 40);
     });
+    $$('#newProfileForm button[value="cancel"]').forEach(function (button) {
+      button.addEventListener("click", function () { $("#newProfileDialog").close(); });
+    });
     $("#newProfileForm").addEventListener("submit", function (event) {
       event.preventDefault();
+      if (event.submitter && event.submitter.value === "cancel") {
+        $("#newProfileDialog").close();
+        return;
+      }
       var name = $("#newProfileName").value.trim();
       if (!name) return;
       syncEngineAnalysis();

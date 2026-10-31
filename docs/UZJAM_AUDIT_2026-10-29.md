@@ -1,5 +1,7 @@
 # UZjam audit — 29 October 2026
 
+Subsequent source repairs and their verification limits are recorded in [31 October repairs](UZJAM_REPAIRS_2026-10-31.md). The findings below preserve the original audit baseline.
+
 Audited local source and packaged Windows UZjam 0.6.0, commit `589a87f68bdfbd92b868f6fb8aba89fd59872171`, plus the hosted Site publication. This register contains 40 findings: confirmed defects, unmet requirements, release/scope gaps, and two explicitly unverified compatibility risks. It is not a claim that every possible defect has been found.
 
 No application source, driver, system setting, or hosted deployment was changed. Temporary local preview navigation was restored and the preview was closed.

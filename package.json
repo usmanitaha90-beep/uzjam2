@@ -15,8 +15,8 @@
     "build:extension": "powershell -ExecutionPolicy Bypass -File ./tools/build-chrome-extension.ps1",
     "typecheck": "tsc -p packages/uzjam-contract/tsconfig.json --pretty false && tsc -p packages/uzjam-engine-client/tsconfig.json --pretty false",
     "test": "npm run typecheck && npm run test:engine && npm run test:web && npm run test:extension && npm run test:dsp-reference && npm run check:frontend-boundary",
-    "test:engine": "tsx --test packages/uzjam-engine-client/test/*.test.ts packages/uzjam-contract/test/*.test.ts",
-    "test:web": "node --test apps/web/test/*.test.mjs",
+    "test:engine": "node --import tsx --test packages/uzjam-engine-client/test/*.test.ts packages/uzjam-contract/test/*.test.ts",
+    "test:web": "node --import tsx --test apps/web/test/*.test.mjs",
     "test:extension": "node --test extensions/chrome/test/*.test.mjs",
     "test:dsp-reference": "node tools/test-dsp-reference.mjs",
     "check:frontend-boundary": "node tools/check-frontend-boundary.mjs",
@@ -26,6 +26,7 @@
     "@tauri-apps/cli": "2.12.1",
     "ajv": "8.20.0",
     "esbuild": "0.25.10",
+    "jsdom": "^26.1.0",
     "tsx": "4.20.6",
     "typescript": "5.9.3"
   }

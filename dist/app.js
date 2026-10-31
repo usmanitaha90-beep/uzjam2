@@ -255,13 +255,16 @@
     return peak;
   }
   function headroomFrequencies(activeFilters2, sampleRateHz, requestedPointCount) {
-    const frequencies = logFrequencyGrid(
-      sampleRateHz,
-      Math.max(HEADROOM_SCAN_POINTS, requestedPointCount)
+    const maximumFrequency = sampleRateHz / 2;
+    const minimumFrequency = Math.min(1, maximumFrequency * 0.5);
+    const count = Math.max(HEADROOM_SCAN_POINTS, requestedPointCount);
+    const frequencies = Array.from(
+      { length: count },
+      (_, index) => minimumFrequency * (maximumFrequency / minimumFrequency) ** (index / (count - 1))
     );
-    const maximumFrequency = frequencies[frequencies.length - 1];
+    frequencies.push(0, maximumFrequency);
     for (const filter of activeFilters2) {
-      if (filter.frequencyHz >= MIN_FREQUENCY_HZ && filter.frequencyHz <= maximumFrequency) {
+      if (filter.frequencyHz > 0 && filter.frequencyHz < maximumFrequency) {
         frequencies.push(filter.frequencyHz);
       }
     }
@@ -713,11 +716,35 @@
     pending: "uzjam-v2-state-pending",
     backup: "uzjam-v2-state-backup"
   });
+  function validatePersistedState(state) {
+    if (!state || typeof state !== "object" || Array.isArray(state)) {
+      throw new Error("Application settings must be an object.");
+    }
+    if (state.schemaVersion != null && (!Number.isInteger(state.schemaVersion) || state.schemaVersion < 0 || state.schemaVersion > APP_STATE_SCHEMA_VERSION)) {
+      throw new Error("This settings version is not supported by this UZjam build.");
+    }
+    if (state.settings != null && (typeof state.settings !== "object" || Array.isArray(state.settings))) {
+      throw new Error("Application preferences must be an object.");
+    }
+    ["bands", "toneBands", "profiles", "queue", "library"].forEach(function(key) {
+      if (state[key] == null) return;
+      if (!Array.isArray(state[key]) || state[key].some(function(item) {
+        return !item || typeof item !== "object" || Array.isArray(item);
+      })) {
+        throw new Error("Invalid " + key + " in application settings.");
+      }
+    });
+    if (state.uzjamProfile != null) validateAndCloneProfile(state.uzjamProfile);
+    (state.profiles || []).forEach(function(profile) {
+      if (profile.uzjamProfile != null) validateAndCloneProfile(profile.uzjamProfile);
+    });
+    return state;
+  }
   function parseObject(raw) {
     if (typeof raw !== "string" || raw.length === 0) return null;
     try {
       var value = JSON.parse(raw);
-      return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+      return validatePersistedState(value);
     } catch (error) {
       return null;
     }
@@ -765,6 +792,7 @@
   }
   function savePersistedState(storage, state, keys = STORAGE_KEYS) {
     if (!storage) throw new Error("Persistent storage is unavailable.");
+    validatePersistedState(state);
     var serialized = JSON.stringify(state);
     var previousRaw = read(storage, keys.primary);
     var previous = parseObject(previousRaw);
@@ -806,7 +834,7 @@
     if (stateVersion > APP_STATE_SCHEMA_VERSION) {
       throw new Error("This backup was created by a newer UZjam build.");
     }
-    return state;
+    return validatePersistedState(state);
   }
 
   // apps/web/src/session-persistence.js
@@ -1826,6 +1854,7 @@
         restore = invokeNative("native_load_state").then(function(saved) {
           var snapshot = saved && saved.snapshot ? saved.snapshot : saved;
           if (snapshot && typeof snapshot === "object" && snapshot.schemaVersion) {
+            validatePersistedState(snapshot);
             var committed = sessionPersistence ? sessionPersistence.replaceAndSuspend(snapshot) : (savePersistedState(localStorage, snapshot), true);
             if (!committed) return false;
             persistenceSuppressed = true;
@@ -2248,6 +2277,7 @@
     function setFaderValue(item, value, lightweight) {
       if (item.preamp) state.preampDb = round(clamp(Number(value) || 0, -24, 12), 1);
       else item.band.gain = round(clamp(Number(value) || 0, -bandGainLimit(), bandGainLimit()), 1);
+      syncEngineAnalysis();
       renderGraph(true);
       renderSafety();
       updateFaderValues();
@@ -3009,18 +3039,30 @@
         showToast("No supported audio found", "Choose FLAC, ALAC, WAV, AIFF, MP3, M4A, AAC, OGG, or Opus files.", "error");
         return [];
       }
-      var existingKeys = new Set(state.library.map(function(item) {
-        return (item.filename || item.title) + ":" + (item.size || 0);
+      var existingItems = new Map(state.library.map(function(item) {
+        return [(item.filename || item.title) + ":" + (item.size || 0), item];
       }));
       var duplicates = 0;
       var addedItems = [];
+      var reconnectedItems = [];
       files.forEach(function(file) {
         var key = file.name + ":" + file.size;
-        if (existingKeys.has(key)) {
+        var existing = existingItems.get(key);
+        if (existing) {
+          if (!fileObjects.has(existing.id)) {
+            fileObjects.set(existing.id, file);
+            reconnectedItems.push(existing);
+            state.queue.forEach(function(track) {
+              if (track.libraryId !== existing.id) return;
+              if (track.url) URL.revokeObjectURL(track.url);
+              track.url = URL.createObjectURL(file);
+              track.playable = true;
+            });
+            return;
+          }
           duplicates += 1;
           return;
         }
-        existingKeys.add(key);
         var extension = file.name.split(".").pop().toUpperCase();
         var item = {
           id: uid("local"),
@@ -3034,18 +3076,25 @@
           demo: false
         };
         fileObjects.set(item.id, file);
+        existingItems.set(key, item);
         state.library.push(item);
         addedItems.push(item);
       });
-      if (addedItems.length) {
-        var tracks = addedItems.map(libraryItemToQueueTrack);
+      if (addedItems.length || reconnectedItems.length) {
+        var missingFromQueue = reconnectedItems.filter(function(item) {
+          return !state.queue.some(function(track) {
+            return track.libraryId === item.id;
+          });
+        });
+        var tracks = addedItems.concat(missingFromQueue).map(libraryItemToQueueTrack);
         state.queue = state.queue.concat(tracks);
         if (state.currentQueueIndex < 0) state.currentQueueIndex = 0;
         loadTrack(state.currentQueueIndex, false);
         renderLibrary();
         renderQueue();
         saveState();
-        showToast("Added " + addedItems.length + (addedItems.length === 1 ? " track" : " tracks"), "Ready in your library and queue.");
+        if (addedItems.length) showToast("Added " + addedItems.length + (addedItems.length === 1 ? " track" : " tracks"), "Ready in your library and queue.");
+        if (reconnectedItems.length) showToast("Reconnected " + reconnectedItems.length + (reconnectedItems.length === 1 ? " track" : " tracks"), "Local file access restored without duplicating your library or queue.");
       }
       if (duplicates && state.settings.duplicateReport) showToast("Skipped " + duplicates + (duplicates === 1 ? " duplicate" : " duplicates"), "Existing files were left unchanged.");
       return addedItems;
@@ -4138,8 +4187,17 @@
           $("#newProfileName").focus();
         }, 40);
       });
+      $$('#newProfileForm button[value="cancel"]').forEach(function(button) {
+        button.addEventListener("click", function() {
+          $("#newProfileDialog").close();
+        });
+      });
       $("#newProfileForm").addEventListener("submit", function(event) {
         event.preventDefault();
+        if (event.submitter && event.submitter.value === "cancel") {
+          $("#newProfileDialog").close();
+          return;
+        }
         var name = $("#newProfileName").value.trim();
         if (!name) return;
         syncEngineAnalysis();
