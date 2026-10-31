@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { buildSync } from "esbuild";
@@ -7,7 +8,7 @@ import { buildSync } from "esbuild";
 // Exercise the actual application entry point and DOM event bindings, rather
 // than reproducing its private editor functions in a unit test.
 const bundle = buildSync({
-  entryPoints: [new URL("../src/app.js", import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL("../src/app.js", import.meta.url))],
   bundle: true, write: false, format: "iife", platform: "browser", target: "es2020",
 }).outputFiles[0].text;
 const html = readFileSync(new URL("../../../dist/index.html", import.meta.url), "utf8");
