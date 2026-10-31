@@ -11,3 +11,5 @@ release/
 *.key
 *.p12
 *.pfx
+
+/dist/*.map

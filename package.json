@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "build": "npm run typecheck && npm run build:web",
-    "build:web": "esbuild apps/web/src/app.js --bundle --format=iife --platform=browser --target=es2020 --sourcemap --sources-content=true --outfile=dist/app.js",
+    "build:web": "esbuild apps/web/src/app.js --bundle --format=iife --platform=browser --target=es2020 --outfile=dist/app.js",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "build:release": "powershell -ExecutionPolicy Bypass -File ./tools/build-windows-release.ps1",
@@ -20,7 +20,8 @@
     "test:extension": "node --test extensions/chrome/test/*.test.mjs",
     "test:dsp-reference": "node tools/test-dsp-reference.mjs",
     "check:frontend-boundary": "node tools/check-frontend-boundary.mjs",
-    "validate:schema": "node tools/validate-schema.mjs"
+    "validate:schema": "node tools/validate-schema.mjs",
+    "build:web:debug": "esbuild apps/web/src/app.js --bundle --format=iife --platform=browser --target=es2020 --sourcemap --sources-content=true --outfile=dist/app.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.1",

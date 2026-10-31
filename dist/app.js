@@ -46,7 +46,11 @@
     return { headroomMode: "auto", clippingPolicy: "auto" };
   }
   function migrateCurrentV2State(state, nowUtc = (/* @__PURE__ */ new Date()).toISOString()) {
-    const sourceFilters = [...state.toneBands ?? [], ...state.bands ?? []];
+    const sourceFilters = [...state.toneBands ?? [], ...state.bands ?? []].filter((filter) => {
+      if (!filter.editorOnly) return true;
+      const kind = currentKind(filter.kind ?? filter.type);
+      return filter.enabled !== false && (!["peak", "lowShelf", "highShelf"].includes(kind) || Number(filter.gainDb ?? filter.gain ?? 0) !== 0);
+    });
     const filters = sourceFilters.map((filter, index) => {
       const frequency = Number(filter.frequencyHz ?? filter.frequency ?? 1e3);
       const gain = Number(filter.gainDb ?? filter.gain ?? 0);
@@ -700,6 +704,30 @@
   _profile = new WeakMap();
 
   // packages/uzjam-engine-client/src/preset-files.ts
+  var UzjamPresetFileError = class extends TypeError {
+    constructor(code, message) {
+      super(message);
+      __publicField(this, "code");
+      this.name = "UzjamPresetFileError";
+      this.code = code;
+    }
+  };
+  function parseUzjamPresetFile(contents) {
+    let value;
+    try {
+      value = JSON.parse(contents);
+    } catch (error) {
+      throw new UzjamPresetFileError("invalid-json", "The preset is not valid JSON.");
+    }
+    try {
+      return validateAndCloneProfile(value);
+    } catch (error) {
+      if (error instanceof UzjamProfileValidationError) {
+        throw new UzjamPresetFileError("invalid-profile", `The preset is invalid: ${error.message}`);
+      }
+      throw error;
+    }
+  }
   function serializeUzjamPresetFile(profile) {
     return `${JSON.stringify(validateAndCloneProfile(profile), null, 2)}
 `;
@@ -1292,7 +1320,7 @@
       }
     };
     function legacyBandFromCanonical(filter) {
-      var kind = filter.kind === "lowShelf" ? "lowshelf" : filter.kind === "highShelf" ? "highshelf" : "peaking";
+      var kind = filter.kind === "peak" ? "peaking" : filter.kind.toLowerCase();
       return {
         id: filter.id,
         type: kind,
@@ -1303,7 +1331,13 @@
         enabled: filter.enabled
       };
     }
-    function hydrateEditorFromProfile(profile) {
+    function handlingFromProfile(profile) {
+      if (profile.dsp.clippingPolicy === "allowClipping" || profile.dsp.headroomMode === "off") return "clip";
+      if (profile.dsp.clippingPolicy === "smooth") return "smooth";
+      if (profile.dsp.clippingPolicy === "curve" || profile.dsp.headroomMode === "manual") return "curve";
+      return "auto";
+    }
+    function hydrateEditorFromProfile(profile, bandCount) {
       if (!profile || profile.schemaVersion !== 1 || !Array.isArray(profile.filters)) return;
       var tone = profile.filters.filter(function(filter) {
         return !!TONE_META[filter.id];
@@ -1311,22 +1345,26 @@
       var advanced = profile.filters.filter(function(filter) {
         return !TONE_META[filter.id];
       }).map(legacyBandFromCanonical);
-      if (tone.length) state.toneBands = migrateToneBands(tone);
-      if (advanced.length) state.bands = advanced;
+      state.toneBands = createToneBands().map(function(band) {
+        return tone.find(function(item) {
+          return item.id === band.id;
+        }) || Object.assign(band, { editorOnly: true });
+      });
+      state.bands = advanced.length ? advanced : createStandardBands(10).map(function(band) {
+        return Object.assign(band, { editorOnly: true });
+      });
+      state.advancedBandCount = [10, 15, 30].indexOf(bandCount) !== -1 ? bandCount : advanced.length === 15 ? 15 : advanced.length >= 20 ? 30 : 10;
       state.eqEnabled = profile.dsp.enabled !== false;
       state.preampDb = Number(profile.dsp.preampDb) || 0;
       state.manualHeadroom = Math.max(0, Number(profile.dsp.manualHeadroomDb) || 0);
-      state.truePeakGuard = profile.dsp.limiterEnabled === true || Number(profile.dsp.safetyMarginDb) >= 0.99;
-      if (profile.dsp.clippingPolicy === "allowClipping" || profile.dsp.headroomMode === "off") state.handling = "clip";
-      else if (profile.dsp.clippingPolicy === "smooth") state.handling = "smooth";
-      else if (profile.dsp.clippingPolicy === "curve" || profile.dsp.headroomMode === "manual") state.handling = "curve";
-      else state.handling = "auto";
+      state.truePeakGuard = profile.dsp.limiterEnabled === true;
+      state.handling = handlingFromProfile(profile);
       state.headroomEnabled = state.handling !== "clip";
       state.activeProfileId = profile.id;
       state.activeProfileName = profile.name;
       state.bandBanks[String(state.advancedBandCount)] = clone(state.bands);
     }
-    if (state.uzjamProfile) hydrateEditorFromProfile(state.uzjamProfile);
+    if (state.uzjamProfile) hydrateEditorFromProfile(state.uzjamProfile, state.advancedBandCount);
     var hydratedEditor = state.mode === "basic" ? state.toneBands : state.bands;
     if (!hydratedEditor.some(function(band) {
       return band.id === state.selectedBandId;
@@ -1338,8 +1376,22 @@
       var current = state.uzjamProfile || engineClient.getProfileSync();
       var now = (/* @__PURE__ */ new Date()).toISOString();
       var profile = migrateCurrentV2State(state, now);
-      profile.metadata.createdAtUtc = current && current.metadata ? current.metadata.createdAtUtc : now;
-      profile.metadata.modifiedAtUtc = now;
+      if (current) {
+        if (state.handling === handlingFromProfile(current) && state.headroomEnabled === (state.handling !== "clip")) {
+          profile.dsp.headroomMode = current.dsp.headroomMode;
+          profile.dsp.clippingPolicy = current.dsp.clippingPolicy;
+        }
+        if (state.truePeakGuard === current.dsp.limiterEnabled) {
+          profile.dsp.safetyMarginDb = current.dsp.safetyMarginDb;
+        }
+        var order = new Map(current.filters.map(function(filter, index) {
+          return [filter.id, index];
+        }));
+        profile.filters.sort(function(a, b) {
+          return (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity);
+        });
+        profile.metadata = Object.assign({}, current.metadata, { modifiedAtUtc: now });
+      }
       profile.target = current ? current.target : null;
       profile.deviceBinding = current ? current.deviceBinding : null;
       return profile;
@@ -1904,9 +1956,7 @@
       return state.mode === "basic" ? 12 : (BANK_SPECS[state.advancedBandCount] || BANK_SPECS[10]).limit;
     }
     function typeLabel(type) {
-      if (type === "lowshelf") return "Low shelf";
-      if (type === "highshelf") return "High shelf";
-      return "Peak";
+      return { lowshelf: "Low shelf", highshelf: "High shelf", lowpass: "Low pass", highpass: "High pass", notch: "Notch", bandpass: "Band pass", allpass: "All pass", peaking: "Peak" }[type] || type;
     }
     function frequencyToRatio(frequency) {
       return Math.log(clamp(frequency, 20, 2e4) / 20) / Math.log(1e3);
@@ -1944,6 +1994,10 @@
     }
     function eqSnapshot() {
       return {
+        uzjamProfile: clone(state.uzjamProfile),
+        activeProfileId: state.activeProfileId,
+        activeProfileName: state.activeProfileName,
+        eqEnabled: state.eqEnabled,
         bands: clone(state.bands),
         toneBands: clone(state.toneBands),
         preampDb: state.preampDb,
@@ -1963,6 +2017,10 @@
       updateHistoryButtons();
     }
     function restoreSnapshot(snapshot) {
+      state.uzjamProfile = clone(snapshot.uzjamProfile);
+      state.activeProfileId = snapshot.activeProfileId;
+      state.activeProfileName = snapshot.activeProfileName;
+      state.eqEnabled = snapshot.eqEnabled;
       state.bands = clone(snapshot.bands);
       if (snapshot.toneBands) state.toneBands = clone(snapshot.toneBands);
       if (snapshot.preampDb != null) state.preampDb = snapshot.preampDb;
@@ -2597,7 +2655,7 @@
     function applyProfile(profile, starter) {
       pushHistory();
       if (profile.uzjamProfile) {
-        hydrateEditorFromProfile(profile.uzjamProfile);
+        hydrateEditorFromProfile(profile.uzjamProfile, profile.advancedBandCount);
         state.uzjamProfile = clone(profile.uzjamProfile);
         state.activeProfileId = starter ? uid("starter-session") : profile.id;
         state.activeProfileName = profile.name;
@@ -2811,6 +2869,9 @@
     function isPlaybackActive() {
       return isTabCaptureActive() || !$("#audioElement").paused;
     }
+    function webAudioQ(band) {
+      return band.type === "lowpass" || band.type === "highpass" ? 20 * Math.log10(band.q) : band.q;
+    }
     function rebuildAudioGraph() {
       if (!audioContext || !audioSourceNode) return;
       syncEngineAnalysis();
@@ -2858,9 +2919,9 @@
         activeBands.forEach(function(band) {
           var filter = audioContext.createBiquadFilter();
           filter.type = band.type;
-          filter.frequency.value = clamp(band.frequency, 20, audioContext.sampleRate * 0.45);
+          filter.frequency.value = band.frequency;
           filter.gain.value = effectiveGainForBand(band);
-          filter.Q.value = clamp(band.q, 0.1, 24);
+          filter.Q.value = webAudioQ(band);
           nodes.push(filter);
           filterNodes.push({ bandId: band.id, channel, node: filter });
           if (!firstNode) firstNode = filter;
@@ -2905,9 +2966,9 @@
           return item.id === entry.bandId;
         });
         if (!band) return;
-        entry.node.frequency.setTargetAtTime(clamp(band.frequency, 20, audioContext.sampleRate * 0.45), now, 0.012);
+        entry.node.frequency.setTargetAtTime(band.frequency, now, 0.012);
         entry.node.gain.setTargetAtTime(effectiveGainForBand(band), now, 0.012);
-        entry.node.Q.setTargetAtTime(clamp(band.q, 0.1, 24), now, 0.012);
+        entry.node.Q.setTargetAtTime(webAudioQ(band), now, 0.012);
       });
       audioGraph.safety = safety;
     }
@@ -3437,6 +3498,7 @@
       announceCapture("Waiting for the UZjam Chrome extension");
       try {
         if (!nativeAudio.devices) await refreshNativeDevices({ silent: true });
+        if (requestId !== tabCapture.requestId) return;
         var outputId = $("#nativeOutputDevice").value || state.settings.nativeOutputDeviceId;
         if (!outputId) throw new Error("Connect your DAC, then choose it as the Listening output in Settings.");
         if (state.settings.nativeDirectEnabled) {
@@ -3675,6 +3737,20 @@
     function importPresetFile(file) {
       file.text().then(function(text) {
         var data = JSON.parse(text);
+        if (data && data.dsp && Array.isArray(data.filters)) {
+          var canonical = parseUzjamPresetFile(text);
+          new BrowserUzjamEngineClient(canonical).analyzeSync({ sampleRateHz: audioContext ? audioContext.sampleRate : SAMPLE_RATE_FALLBACK });
+          pushHistory();
+          state.uzjamProfile = canonical;
+          hydrateEditorFromProfile(canonical);
+          state.selectedBandId = (state.mode === "basic" ? state.toneBands[0] : state.bands[0]).id;
+          soloBandId = null;
+          renderEq();
+          saveState();
+          navigate("studio");
+          showToast("Preset imported", canonical.name + " loaded with " + canonical.filters.length + " filters.");
+          return;
+        }
         var preset = validatePreset(data);
         pushHistory();
         state.bands = preset.bands;
@@ -4212,6 +4288,7 @@
           device: $("#newProfileDevice").value.trim() || "Custom output",
           color: randomColor(name),
           uzjamProfile: canonical,
+          advancedBandCount: state.advancedBandCount,
           user: true
         };
         state.profiles.unshift(profile);
@@ -4630,4 +4707,3 @@
     initialize();
   })();
 })();
-//# sourceMappingURL=app.js.map

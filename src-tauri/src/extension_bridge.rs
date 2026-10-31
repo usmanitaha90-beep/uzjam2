@@ -8,10 +8,12 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 use tungstenite::handshake::server::{ErrorResponse, Request, Response};
+#[cfg(any(windows, test))]
+use tungstenite::{accept_hdr_with_config, protocol::WebSocketConfig, HandshakeError};
 #[cfg(windows)]
-use tungstenite::{accept_hdr, Error as WebSocketError, Message};
+use tungstenite::{Error as WebSocketError, Message};
 
 pub const BRIDGE_PROTOCOL: u16 = 1;
 const FIRST_BRIDGE_PORT: u16 = 39_847;
@@ -268,29 +270,26 @@ fn handle_connection(
     stop_generation: &AtomicU64,
     shutdown: &AtomicBool,
 ) {
-    let websocket = accept_hdr(stream, |request: &Request, response: Response| {
-        let valid_origin = request
-            .headers()
-            .get("origin")
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|origin| origin.starts_with("chrome-extension://"));
-        let valid_path = request.uri().path() == "/uzjam-tab-audio";
-        if valid_origin && valid_path {
-            Ok(response)
-        } else {
-            let rejection = http_rejection("UZjam accepts its Chrome extension only.");
-            Err(rejection)
-        }
-    });
-    let Ok(mut websocket) = websocket else {
+    // Both the HTTP handshake and subsequent frame reads are nonblocking so
+    // an incomplete local connection cannot pin the serial worker or shutdown.
+    if stream.set_nonblocking(true).is_err() {
+        return;
+    }
+    let Some(mut websocket) = accept_bridge_socket(stream, shutdown, Duration::from_secs(2)) else {
         return;
     };
-    let _ = websocket
-        .get_mut()
-        .set_read_timeout(Some(Duration::from_secs(5)));
-    let hello = match websocket.read() {
-        Ok(Message::Text(text)) => serde_json::from_str::<ClientHello>(&text).ok(),
-        _ => None,
+    let hello_deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let hello = loop {
+        if shutdown.load(Ordering::Acquire) || std::time::Instant::now() >= hello_deadline {
+            return;
+        }
+        match websocket.read() {
+            Ok(Message::Text(text)) => break serde_json::from_str::<ClientHello>(&text).ok(),
+            Err(WebSocketError::Io(error)) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            _ => break None,
+        }
     };
     let Some(hello) = hello else {
         let _ = websocket.send(Message::Text(
@@ -310,9 +309,6 @@ fn handle_connection(
         ));
         return;
     }
-    let _ = websocket
-        .get_mut()
-        .set_read_timeout(Some(Duration::from_millis(250)));
     {
         let mut current = status
             .lock()
@@ -396,7 +392,10 @@ fn handle_connection(
                 if matches!(
                     error.kind(),
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                ) => {}
+                ) =>
+            {
+                thread::sleep(Duration::from_millis(10));
+            }
             Err(_) => break,
         }
     }
@@ -407,7 +406,55 @@ fn handle_connection(
     current.streaming = false;
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, test))]
+// tungstenite requires its concrete HTTP ErrorResponse in the callback.
+#[allow(clippy::result_large_err)]
+fn accept_bridge_socket<S: std::io::Read + std::io::Write>(
+    stream: S,
+    shutdown: &AtomicBool,
+    timeout: Duration,
+) -> Option<tungstenite::WebSocket<S>> {
+    let deadline = std::time::Instant::now() + timeout;
+    if shutdown.load(Ordering::Acquire) {
+        return None;
+    }
+    let config = WebSocketConfig::default()
+        .max_message_size(Some(MAX_PCM_BYTES))
+        .max_frame_size(Some(MAX_PCM_BYTES));
+    let mut handshake = accept_hdr_with_config(
+        stream,
+        |request: &Request, response: Response| {
+            let valid_origin = request
+                .headers()
+                .get("origin")
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|origin| origin.starts_with("chrome-extension://"));
+            let valid_path = request.uri().path() == "/uzjam-tab-audio";
+            if valid_origin && valid_path {
+                Ok(response)
+            } else {
+                let rejection = http_rejection("UZjam accepts its Chrome extension only.");
+                Err(rejection)
+            }
+        },
+        Some(config),
+    );
+    loop {
+        if shutdown.load(Ordering::Acquire) || std::time::Instant::now() >= deadline {
+            return None;
+        }
+        match handshake {
+            Ok(socket) => return Some(socket),
+            Err(HandshakeError::Failure(_)) => return None,
+            Err(HandshakeError::Interrupted(pending)) => {
+                thread::sleep(Duration::from_millis(10));
+                handshake = pending.handshake();
+            }
+        }
+    }
+}
+
+#[cfg(any(windows, test))]
 fn http_rejection(message: &str) -> ErrorResponse {
     tungstenite::http::Response::builder()
         .status(403)
@@ -422,6 +469,64 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct HandshakeInput(std::io::Cursor<Vec<u8>>);
+
+    impl std::io::Read for HandshakeInput {
+        fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+            let read = std::io::Read::read(&mut self.0, bytes)?;
+            if read == 0 {
+                Err(std::io::ErrorKind::WouldBlock.into())
+            } else {
+                Ok(read)
+            }
+        }
+    }
+
+    impl std::io::Write for HandshakeInput {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn stalled_handshake_has_a_deadline_and_obeys_shutdown() {
+        let start = std::time::Instant::now();
+        let stream = HandshakeInput(std::io::Cursor::new(Vec::new()));
+        assert!(
+            accept_bridge_socket(stream, &AtomicBool::new(false), Duration::from_millis(20))
+                .is_none()
+        );
+        assert!(start.elapsed() < Duration::from_secs(1));
+        let stream = HandshakeInput(std::io::Cursor::new(Vec::new()));
+        assert!(
+            accept_bridge_socket(stream, &AtomicBool::new(true), Duration::from_secs(60)).is_none()
+        );
+    }
+
+    #[test]
+    fn bridge_handshake_checks_origin_path_and_frame_limits() {
+        for (origin, path, accepted) in [
+            ("chrome-extension://extension-id", "/uzjam-tab-audio", true),
+            ("https://example.com", "/uzjam-tab-audio", false),
+            ("chrome-extension://extension-id", "/wrong", false),
+        ] {
+            let request = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: {origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n");
+            let result = accept_bridge_socket(
+                HandshakeInput(std::io::Cursor::new(request.into_bytes())),
+                &AtomicBool::new(false),
+                Duration::from_secs(1),
+            );
+            assert_eq!(result.is_some(), accepted);
+            if let Some(socket) = result {
+                assert_eq!(socket.get_config().max_frame_size, Some(MAX_PCM_BYTES));
+                assert_eq!(socket.get_config().max_message_size, Some(MAX_PCM_BYTES));
+            }
+        }
+    }
 
     #[test]
     fn pairing_codes_are_normalized_for_human_entry() {

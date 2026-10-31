@@ -12,9 +12,9 @@ describe("UZjam Chrome extension package", () => {
     assert.ok(Number(manifest.minimum_chrome_version) >= 116);
     assert.deepEqual(
       [...manifest.permissions].sort(),
-      ["offscreen", "storage", "tabCapture", "tabs"].sort()
+      ["offscreen", "storage", "tabCapture", "activeTab"].sort()
     );
-    assert.deepEqual(manifest.host_permissions, ["ws://127.0.0.1/*"]);
+    assert.deepEqual(manifest.host_permissions, ["http://127.0.0.1/*"]);
   });
 
   it("keeps the native bridge on loopback and requires a pairing code", async () => {

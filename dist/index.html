@@ -261,6 +261,11 @@
                 <button data-filter="lowshelf">Low shelf</button>
                 <button data-filter="peaking">Peak</button>
                 <button data-filter="highshelf">High shelf</button>
+                <button data-filter="lowpass">Low pass</button>
+                <button data-filter="highpass">High pass</button>
+                <button data-filter="notch">Notch</button>
+                <button data-filter="bandpass">Band pass</button>
+                <button data-filter="allpass">All pass</button>
               </div>
 
               <div class="parameter-stack">
@@ -331,7 +336,8 @@
                     <input id="headroomRange" class="range" type="range" min="0" max="24" step=".1" aria-label="Manual headroom">
                   </div>
                   <div class="true-peak-row">
-                    <label class="switch compact"><input id="truePeakGuardInput" type="checkbox"><span></span><em>−1 dB look-ahead limiter</em></label>
+                    <label class="switch compact"><input id="truePeakGuardInput" type="checkbox" aria-describedby="limiterRouteNotice"><span></span><em>Native look-ahead limiter</em></label>
+                    <p id="limiterRouteNotice">Native audio routes only. Browser playback uses headroom without transient limiting.</p>
                   </div>
                 </div>
               </section>

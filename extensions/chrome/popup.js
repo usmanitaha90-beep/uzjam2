@@ -27,7 +27,7 @@ function showStatus(status) {
     stopButton.hidden = true;
   } else {
     statusTitle.textContent = "Ready to connect";
-    statusText.textContent = "Choose a Chrome tab below.";
+    statusText.textContent = "Connect the current tab below. To use another tab, open UZjam's extension there.";
     stopButton.hidden = true;
   }
 }
@@ -38,7 +38,7 @@ function displayHost(url) {
 }
 
 async function renderTabs() {
-  const tabs = await chrome.tabs.query({ windowType: "normal" });
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const available = tabs
     .filter((tab) => tab.id && tab.url && /^(https?|file):/i.test(tab.url))
     .sort((left, right) => Number(right.audible) - Number(left.audible));
@@ -80,7 +80,7 @@ async function renderTabs() {
         pairingCode
       });
       if (!response || !response.ok) {
-        showStatus({ state: "error", message: response?.error || "Chrome could not capture that tab." });
+        if (!response?.cancelled) showStatus({ state: "error", message: response?.error || "Chrome could not capture that tab." });
       }
     });
     row.append(copy, connect);

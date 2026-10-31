@@ -2,7 +2,7 @@
 
 Development build. Known functional and distribution gaps remain; see the [29 October 2026 audit](docs/UZJAM_AUDIT_2026-10-29.md) before using this as a release candidate. The repository includes source and build instructions; generated installers, local dependencies, and signing credentials are excluded.
 
-UZjam 0.6 adds a Chrome companion extension that lets you select one exact browser tab and send its audio directly to the Windows app—no virtual cable and no screen-sharing picker. The desktop bridge feeds the selected tab into the same Rust DSP, headroom, limiter, telemetry, and WASAPI DAC output used by the native product. The established UI, canonical `UzjamProfile`, and portable Rust DSP remain shared.
+UZjam 0.6 adds a Chrome companion extension that lets you capture the tab where you open the extension and send its audio directly to the Windows app—no virtual cable and no screen-sharing picker. The desktop bridge feeds the selected tab into the same Rust DSP, headroom, limiter, telemetry, and WASAPI DAC output used by the native product. The established UI, canonical `UzjamProfile`, and portable Rust DSP remain shared.
 
 ## Windows quick start
 
@@ -19,7 +19,7 @@ In the Windows app, open **Settings → Windows audio**, select the everyday pla
 2. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `target\extension\uzjam-tab-audio-0.6.0`.
 3. Open the UZjam desktop app, confirm your DAC under **Settings → Windows audio → Listening output**, then choose **Source → Browser tab**.
 4. Copy the 10-character pairing code shown in UZjam.
-5. Click the UZjam extension in Chrome, paste the code once, and select the exact tab you want to hear.
+5. Click the UZjam extension in Chrome, paste the code once, and connect the current tab (open the extension on the desired music tab).
 
 The tab's dry Chrome playback is suppressed while capture is active. UZjam is the only playback path and sends the processed signal to the selected DAC. The WebSocket bridge listens only on `127.0.0.1`, accepts Chrome-extension origins, and requires the per-install pairing code.
 

@@ -43,7 +43,7 @@ Then:
 3. Click **Load unpacked** and choose `target\extension\uzjam-tab-audio-0.6.0`.
 4. Pin **UZjam Tab Audio** to the Chrome toolbar.
 5. In the UZjam app, choose your DAC under **Settings → Windows audio → Listening output**.
-6. Choose **Source → Browser tab**, copy the pairing code, then click the Chrome extension and select a tab.
+6. Choose **Source → Browser tab**, copy the pairing code, then open the Chrome extension on the desired music tab and connect that current tab.
 
 The pairing code is generated locally, persists for this Windows user, and is stored by the extension after the first connection. Audio travels as stereo float PCM over a WebSocket bound to `127.0.0.1`; it is never uploaded. Chrome's unprocessed tab playback is suppressed while UZjam renders the processed signal to the selected DAC.
 
